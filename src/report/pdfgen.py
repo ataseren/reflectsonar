@@ -51,12 +51,24 @@ def badge(letter):
     }
     return CircleBadge(letter, radius=12, color=color_map.get(letter, HexColor("#9E9E9E")))
 
+def score_to_grade(score: float) -> str:
+    if score <= 1.0:
+        return "A"
+    elif score <= 2.0:
+        return "B"
+    elif score <= 3.0:
+        return "C"
+    elif score <= 4.0:
+        return "D"
+    else:
+        return "E"
+
 
 def issue_count_by_severity(issues, severity):
     return sum(1 for i in issues if i.severity.upper() == severity.upper())
 
 def get_measure_value(measures, metric, default="0"):
-    return measures.get(metric).value if metric in measures else default
+    return float(measures.get(metric).value if metric in measures else default)
 
 def issue_block(title, value, grade):
     content = [
@@ -86,12 +98,12 @@ def project_data_block(title, value, grade):
         ("BOTTOMPADDING", (0, 0), (-1, -1), 0),
     ]))
 
-def block_with_badge(title, value_html, grade):
+def hotspot_block(title, value):
     content = [
         Paragraph(f"<b>{title}</b>", style_normal),
-        Paragraph(value_html, style_normal)
+        Paragraph(f"<font size=14><b>{value}</b></font> Open Issues", style_normal)
     ]
-    return Table([[content, badge(grade)]], colWidths=[5*cm, 1*cm], style=TableStyle([
+    return Table([[content]], colWidths=[4*cm, 1*cm], style=TableStyle([
         ("VALIGN", (0, 0), (-1, -1), "TOP"),
         ("ALIGN", (1, 0), (1, 0), "RIGHT"),
         ("LEFTPADDING", (0, 0), (-1, -1), 0),
@@ -132,28 +144,36 @@ def generate_pdf(report: ReportData, output_path="reflect_sonar_report.pdf"):
     now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     elements.append(Paragraph(f"<b>Date:</b> {now}", style_meta))
     elements.append(Paragraph(f"<b>SonarQube Project Name:</b> {report.project.name}", style_meta))
-    elements.append(Paragraph(f"<b>Path of Scanned Directory:</b> {report.project.key}", style_meta))
     elements.append(Spacer(1, 1*cm))
 
     coverage = float(get_measure_value(report.measures, "coverage", 0.0))
     cover_lines = int(get_measure_value(report.measures, "lines_to_cover", 0))
     duplication = float(get_measure_value(report.measures, "duplicated_lines_density", 0.0))
-    dup_lines = int(get_measure_value(report.measures, "ncloc", 0))
+    dup_lines = int(get_measure_value(report.measures, "lines", 0))
     hotspot_count = len(report.hotspots)
+
+    security_issues_count = int(get_measure_value(report.measures, "software_quality_security_issues", 0))
+    reliability_issues_count = int(get_measure_value(report.measures, "software_quality_reliability_issues", 0))
+    maintainability_issues_count = int(get_measure_value(report.measures, "software_quality_maintainability_issues", 0))
+
+    security_rating = score_to_grade(get_measure_value(report.measures, "software_quality_security_rating", 5.0))
+    reliability_rating = score_to_grade(get_measure_value(report.measures, "software_quality_reliability_rating", 5.0))
+    maintainability_rating = score_to_grade(get_measure_value(report.measures, "software_quality_maintainability_rating", 5.0))
+
 
     dashboard_data = [
         [  # Row 1
-            issue_block("Security", str(issue_count_by_severity(report.issues, "CRITICAL")), "E"),
-            issue_block("Reliability", str(issue_count_by_severity(report.issues, "MAJOR")),  "D"),
-            issue_block("Maintainability", str(issue_count_by_severity(report.issues, "MINOR")), "A")
+            issue_block("Security", str(security_issues_count), security_rating),
+            issue_block("Reliability", str(reliability_issues_count),  reliability_rating),
+            issue_block("Maintainability", str(maintainability_issues_count), maintainability_rating)
         ],
         [  # Row 2
-            project_data_block("Accepted Issues", "0<br/><font size=8>Valid issues that were not fixed</font>", "C"),
+            project_data_block("Accepted Issues", "0<br/><font size=6>Valid issues that were not fixed</font>", "C"),
             project_data_block("Coverage", f"{coverage}%<br/><font size=8>on {cover_lines} lines to cover</font>", "B"),
             project_data_block("Duplications", f"{duplication}%<br/><font size=8>on {dup_lines} lines</font>", "D")
         ],
         [  # Row 3
-            issue_block("Security Hotspots", f"<font size=14><b>{hotspot_count}</b></font>", "E"),
+            hotspot_block("Security Hotspots", f"<font size=14><b>{hotspot_count}</b></font>"),
             Spacer(0, 0), Spacer(0, 0)
         ]
     ]
@@ -169,6 +189,7 @@ def generate_pdf(report: ReportData, output_path="reflect_sonar_report.pdf"):
         ("RIGHTPADDING", (0, 0), (-1, -1), 10),
         ("TOPPADDING", (0, 0), (-1, -1), 8),
         ("BOTTOMPADDING", (0, 0), (-1, -1), 8),
+        ("SPAN", (0, 2), (2, 2)),
     ]))
     elements.append(t)
     elements.append(Spacer(1, 2*cm))
