@@ -30,11 +30,13 @@ def get_report_data(base_url: str, token: str, project_key: str) -> ReportData:
     issues_url = f"{base_url}/api/issues/search?componentKeys={project_key}&ps=500"
     measures_url = f"{base_url}/api/measures/component?component={project_key}&metricKeys={metrics_param}"
     hotspots_url = f"{base_url}/api/hotspots/search?projectKey={project_key}"
+    settings_url = f"{base_url}/api/settings/values?keys=sonar.multi-quality-mode.enabled"
 
     component_data = get_json(component_url, token)
     issues_data = get_json(issues_url, token)
     measures_data = get_json(measures_url, token)
     hotspots_data = get_json(hotspots_url, token)
+    settings_data = get_json(settings_url, token)
 
     project = SonarQubeProject.from_dict(component_data)
 
@@ -51,13 +53,16 @@ def get_report_data(base_url: str, token: str, project_key: str) -> ReportData:
         SonarQubeHotspot.from_dict(h) for h in hotspots_data.get("hotspots", [])
     ]
 
+    settings: bool = settings_data.get("sonar.multi-quality-mode.enabled", {}).get("value", "true").lower() == "true"
+
     return ReportData(
         project=project,
         issues=issues,
         measures=measures,
         hotspots=hotspots,
         quality_gate={},
-        quality_profiles=[]
+        quality_profiles=[],
+        mode_setting=settings
     )
 
 

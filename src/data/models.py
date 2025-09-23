@@ -23,6 +23,7 @@ class SonarQubeIssue:
     tags: List[str] = field(default_factory=list)
     creation_date: Optional[datetime] = None
     update_date: Optional[datetime] = None
+    impacts: List[Dict[str, Any]] = field(default_factory=list)
     
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> 'SonarQubeIssue':
@@ -43,7 +44,8 @@ class SonarQubeIssue:
             creation_date=data.get('creationDate')
                 if data.get('creationDate') else None,
             update_date=data.get('updateDate')
-                if data.get('updateDate') else None
+                if data.get('updateDate') else None,
+            impacts=data.get('impacts', [])
         )
 
 
@@ -131,3 +133,4 @@ class ReportData:
     hotspots: List[SonarQubeHotspot]
     quality_gate: Dict[str, Any]
     quality_profiles: List[Dict[str, Any]]
+    mode_setting: bool
