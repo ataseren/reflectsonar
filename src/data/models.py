@@ -24,6 +24,7 @@ class SonarQubeIssue:
     creation_date: Optional[datetime] = None
     update_date: Optional[datetime] = None
     impacts: List[Dict[str, Any]] = field(default_factory=list)
+    code_snippet: Optional[str] = None
     
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> 'SonarQubeIssue':
