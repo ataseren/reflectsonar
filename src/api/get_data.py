@@ -19,94 +19,84 @@ def get_code_snippet(base_url: str, token: str, component: str, line: int, conte
         
         try:
             response = get_json(sources_url, token)
-            print(f"DEBUG: API Response keys: {list(response.keys())}")  # Debug what we get back
         except Exception as api_error:
-            print(f"DEBUG: API call failed: {api_error}")
+            print(f"ERROR: API call failed: {api_error}")
             return ""
         
         sources = response.get("sources", [])
-        print(f"DEBUG: Got {len(sources)} source lines for component {component}, line {line}")  # Debug log
         
         if not sources:
-            print(f"DEBUG: No sources found for {component}:{line}")  # Debug log
-            print(f"DEBUG: Full API response: {response}")  # Show what we actually got
+            print(f"ERROR: No sources found for {component}:{line}")  # Debug log
+            print(f"ERROR: Full API response: {response}")  # Show what we actually got
             return ""
         
-        # Debug: Print first source to see structure
-        if sources:
-            print(f"DEBUG: First source structure: {sources[0]}")
             
         # Format the code snippet with line numbers
         snippet_lines = []
         for source in sources:
             line_num = source[0]
             code = source[1]
-            print(f"DEBUG: Processing line {line_num}: '{code[:50]}...'")  # Debug each line
             # Mark the problematic line with >>> 
             marker = ">>> " if line_num == line else "    "
             snippet_lines.append(f"{marker}{line_num:3d}: {code}")
             
         result = "\n".join(snippet_lines)
-        print(f"DEBUG: Generated snippet ({len(result)} chars): {result[:200]}...")  # Debug log
         return result
         
     except Exception as e:
-        print(f"DEBUG: Error fetching code snippet for {component}:{line}: {e}")  # Debug log
+        print(f"ERROR: Error fetching code snippet for {component}:{line}: {e}")  # Debug log
         import traceback
         traceback.print_exc()
         return ""
 
-def create_enhanced_fallback_snippet(issue):
-    """Create a more realistic code snippet based on the issue type and rule"""
-    line = issue.line
-    rule = issue.rule.lower()
-    message = issue.message
+
+
+def fetch_all_hotspots(base_url: str, token: str, project_key: str) -> Dict:
+    """Fetch all hotspots from SonarQube with pagination support"""
+    all_hotspots = []
+    page = 1
+    page_size = 500  # Maximum page size
     
-    # Create context lines
-    prev_line = line - 1
-    next_line = line + 1
+    print(f"DEBUG: Starting to fetch all hotspots for project {project_key}")
     
-    # Generate code based on common rule patterns with proper indentation
-    if "s2068" in rule or "credential" in message.lower() or "password" in message.lower():
-        # Hard-coded credentials
-        return f"""    {prev_line}: public class AuthService {{
->>> {line}:     private String password = "hardcoded123";  // {message}
-    {next_line}:     
-    {next_line+1}:     public boolean authenticate(String user) {{"""
+    while True:
+        hotspots_url = f"{base_url}/api/hotspots/search?projectKey={project_key}&ps={page_size}&p={page}"
+        print(f"DEBUG: Fetching hotspots page {page} with page size {page_size}")
         
-    elif "s1764" in rule or "identical" in message.lower():
-        # Identical expressions
-        return f"""    {prev_line}:     if (value != null) {{
->>> {line}:         if (value == value) {{  // {message}
-    {next_line}:             return processValue(value);
-    {next_line+1}:         }}"""
-        
-    elif "s1481" in rule or "unused" in message.lower():
-        # Unused variables
-        return f"""    {prev_line}: public void processData() {{
->>> {line}:     String unusedVar = "never used";  // {message}
-    {next_line}:     System.out.println("Processing...");
-    {next_line+1}: }}"""
-        
-    elif "security" in rule or issue.type == "VULNERABILITY":
-        # Security vulnerability
-        return f"""    {prev_line}:     // Security vulnerability detected
->>> {line}:     if (userInput.contains("<script>")) {{  // {message}
-    {next_line}:         processInput(userInput);  // Dangerous!
-    {next_line+1}:     }}"""
-        
-    elif "bug" in rule or issue.type == "BUG":
-        # Bug
-        return f"""    {prev_line}:     try {{
->>> {line}:         result = divide(a, b);  // {message}
-    {next_line}:     }} catch (Exception e) {{
-    {next_line+1}:         logger.error("Division error", e);"""
-        
-    else:
-        # Generic fallback with proper indentation
-        return f"""    {prev_line}:     // Previous line context
->>> {line}:     // Issue: {message}
-    {next_line}:     // Next line context"""
+        try:
+            page_data = get_json(hotspots_url, token)
+            page_hotspots = page_data.get("hotspots", [])
+            
+            print(f"DEBUG: Page {page} returned {len(page_hotspots)} hotspots")
+            all_hotspots.extend(page_hotspots)
+            
+            # Check if we have more pages
+            paging = page_data.get("paging", {})
+            total = paging.get("total", 0)
+            current_total = len(all_hotspots)
+            
+            print(f"DEBUG: Current total: {current_total}, API total: {total}")
+            
+            if current_total >= total:
+                print(f"DEBUG: Fetched all {current_total} hotspots")
+                break
+                
+            page += 1
+            
+        except Exception as e:
+            print(f"ERROR: Failed to fetch hotspots page {page}: {e}")
+            break
+    
+    # Return in the same format as the original API response
+    return {
+        "hotspots": all_hotspots,
+        "paging": {
+            "pageIndex": 1,
+            "pageSize": len(all_hotspots),
+            "total": len(all_hotspots)
+        }
+    }
+
 
 def get_report_data(base_url: str, token: str, project_key: str) -> ReportData:
 
@@ -129,14 +119,15 @@ def get_report_data(base_url: str, token: str, project_key: str) -> ReportData:
     component_url = f"{base_url}/api/components/show?component={project_key}"
     issues_url = f"{base_url}/api/issues/search?componentKeys={project_key}&ps=500"
     measures_url = f"{base_url}/api/measures/component?component={project_key}&metricKeys={metrics_param}"
-    hotspots_url = f"{base_url}/api/hotspots/search?projectKey={project_key}"
     settings_url = f"{base_url}/api/settings/values?keys=sonar.multi-quality-mode.enabled"
 
     component_data = get_json(component_url, token)
     issues_data = get_json(issues_url, token)
     measures_data = get_json(measures_url, token)
-    hotspots_data = get_json(hotspots_url, token)
     settings_data = get_json(settings_url, token)
+    
+    # Fetch ALL hotspots with pagination
+    hotspots_data = fetch_all_hotspots(base_url, token, project_key)
 
     project = SonarQubeProject.from_dict(component_data)
 
@@ -156,9 +147,7 @@ def get_report_data(base_url: str, token: str, project_key: str) -> ReportData:
             
             # If no code snippet was fetched, create a more realistic fallback
             if not code_snippet.strip():
-                print(f"DEBUG: No code snippet from API, creating enhanced fallback")
-                code_snippet = create_enhanced_fallback_snippet(issue)
-                print(f"DEBUG: Created fallback snippet based on rule: {issue.rule}")
+                code_snippet = "No code snippet available for this issue."
             
             issue.code_snippet = code_snippet
             print(f"DEBUG: Code snippet result: {'Found' if code_snippet else 'Empty'} ({len(code_snippet)} chars)")
@@ -172,9 +161,30 @@ def get_report_data(base_url: str, token: str, project_key: str) -> ReportData:
         for m in measures_data.get("component", {}).get("measures", [])
     }
 
-    hotspots: List[SonarQubeHotspot] = [
-        SonarQubeHotspot.from_dict(h) for h in hotspots_data.get("hotspots", [])
-    ]
+    # Process hotspots and fetch code snippets
+    hotspots: List[SonarQubeHotspot] = []
+    total_hotspots = len(hotspots_data.get("hotspots", []))
+    print(f"DEBUG: Processing {total_hotspots} hotspots...")
+    
+    for i, hotspot_data in enumerate(hotspots_data.get("hotspots", [])):
+        hotspot = SonarQubeHotspot.from_dict(hotspot_data)
+        print(f"DEBUG: Hotspot {i+1}/{total_hotspots}: {hotspot.key}, component: {hotspot.component}, line: {hotspot.line}")
+        
+        # Fetch code snippet if the hotspot has a line number
+        if hotspot.line:
+            print(f"DEBUG: Fetching code snippet for hotspot {hotspot.key}")
+            code_snippet = get_code_snippet(base_url, token, hotspot.component, hotspot.line)
+            
+            # If no code snippet was fetched, create a security-focused fallback
+            if not code_snippet.strip():
+                code_snippet = "No code snippet available for this hotspot."
+            
+            hotspot.code_snippet = code_snippet
+            print(f"DEBUG: Code snippet result: {'Found' if code_snippet else 'Empty'} ({len(code_snippet)} chars)")
+        else:
+            print(f"DEBUG: Hotspot {hotspot.key} has no line number, skipping code snippet")
+            
+        hotspots.append(hotspot)
 
     settings: bool = settings_data.get("sonar.multi-quality-mode.enabled", {}).get("value", "true").lower() == "true"
 

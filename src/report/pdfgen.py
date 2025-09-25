@@ -2,19 +2,20 @@
 Main PDF generation module - orchestrates all report components
 """
 from reportlab.platypus import SimpleDocTemplate, PageBreak
-from reportlab.lib.pagesizes import A4
-from reportlab.lib.units import cm
+from reportlab.lib.pagesizes import letter, A4
+from reportlab.lib.units import inch, cm
 from data.models import ReportData
 import os
 
 # Import modular components
-from .utils import detect_sonarqube_mode, draw_logo
+from .utils import detect_sonarqube_mode, draw_logo, BookmarkFlowable
 from .cover_page import generate_cover_page
 from .issues import (
     generate_security_issues_page,
     generate_reliability_issues_page, 
     generate_maintainability_issues_page
 )
+from .hotspots import generate_security_hotspots_page
 
 
 def add_header_footer(canvas, doc):
@@ -63,20 +64,33 @@ def generate_pdf(report: ReportData, output_path: str = "reflect_sonar_report.pd
     # Container for all report elements
     elements = []
     
+    # Add main bookmark for cover page
+    elements.append(BookmarkFlowable("Report Overview", 0))
+    
     # Generate cover page
     generate_cover_page(report, elements)
     
     # Add page break before issues sections
     elements.append(PageBreak())
     
-    # Generate issue sections
+    # Add bookmark and generate security issues section
+    elements.append(BookmarkFlowable("Security Issues", 0))
     generate_security_issues_page(report, elements, mode)
     elements.append(PageBreak())
     
+    # Add bookmark and generate reliability issues section
+    elements.append(BookmarkFlowable("Reliability Issues", 0))
     generate_reliability_issues_page(report, elements, mode)
     elements.append(PageBreak())
     
+    # Add bookmark and generate maintainability issues section
+    elements.append(BookmarkFlowable("Maintainability Issues", 0))
     generate_maintainability_issues_page(report, elements, mode)
+    elements.append(PageBreak())
+    
+    # Add bookmark and generate security hotspots section
+    elements.append(BookmarkFlowable("Security Hotspots", 0))
+    generate_security_hotspots_page(report, elements)
     
     # Build the PDF
     doc.build(elements, onFirstPage=add_header_footer, onLaterPages=add_header_footer)

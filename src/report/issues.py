@@ -2,10 +2,11 @@
 Issue pages generation for PDF reports
 """
 import re
+
 from .utils import (
     style_section_title, style_issue_meta, style_normal, Paragraph, Spacer, 
     Table, TableStyle, colors, cm, get_severity_order, get_severity_list,
-    severity_badge, ParagraphStyle, KeepTogether
+    severity_badge, ParagraphStyle, KeepTogether, BookmarkFlowable
 )
 
 
@@ -120,9 +121,21 @@ def create_issue_table(issues, mode: str = "STANDARD"):
         if issue.line:
             filename += f"<br/><b>(Line {issue.line})</b>"
         
-        # Format rule and message
+        # Format rule and message - clean HTML in the message to prevent parsing errors
         rule_name = issue.rule.split(':')[-1] if ':' in issue.rule else issue.rule
-        rule_and_message = f"<b>{rule_name}</b><br/>{issue.message}"
+        
+        # Clean HTML content from the message to prevent ReportLab parsing issues
+        import re
+        
+        # Remove all HTML tags from the message to prevent parsing conflicts
+        # This preserves the text content while removing problematic markup
+        cleaned_message = re.sub(r'<[^>]+>', '', issue.message)
+        
+        # Also clean up any HTML entities that might remain
+        import html
+        cleaned_message = html.unescape(cleaned_message)
+        
+        rule_and_message = f"<b>{rule_name}</b><br/>{cleaned_message}"
         
         # Get the appropriate severity for badge
         display_severity = issue.severity
@@ -282,10 +295,13 @@ def create_issue_section(title: str, issues, elements, mode: str = "STANDARD"):
         summary_parts = []
         severity_list = get_severity_list(mode)
         
+        # Add sub-bookmarks for severities that have issues
         for severity in severity_list:
             count = severity_counts.get(severity, 0)
             if count > 0:
                 summary_parts.append(f"{severity.title()}: {count}")
+                # Add sub-bookmark for this severity level
+                elements.append(BookmarkFlowable(f"{severity.title()} ({count})", 1))
         
         if summary_parts:
             summary_text = f"<b>Total: {len(issues)} issues</b> ({', '.join(summary_parts)})"

@@ -104,6 +104,9 @@ class SonarQubeHotspot:
     creation_date: Optional[datetime] = None
     update_date: Optional[datetime] = None
     vulnerability_probability: str = "MEDIUM"
+    code_snippet: Optional[str] = None
+    security_category: Optional[str] = None
+    rule_name: Optional[str] = None
     
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> 'SonarQubeHotspot':
@@ -121,7 +124,9 @@ class SonarQubeHotspot:
                 if data.get('creationDate') else None,
             update_date=data.get('updateDate')
                 if data.get('updateDate') else None,
-            vulnerability_probability=data.get('vulnerabilityProbability', 'MEDIUM')
+            vulnerability_probability=data.get('vulnerabilityProbability', 'MEDIUM'),
+            security_category=data.get('securityCategory'),
+            rule_name=data.get('ruleName')
         )
 
 

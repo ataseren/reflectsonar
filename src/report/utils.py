@@ -22,6 +22,26 @@ from reportlab.graphics.shapes import Drawing, Circle, String
 from reportlab.lib.enums import TA_CENTER, TA_LEFT
 import os
 
+class BookmarkFlowable(Flowable):
+    """Custom flowable to add bookmarks to PDF"""
+    def __init__(self, title, level=0):
+        self.title = title
+        self.level = level
+        self.width = 0
+        self.height = 0
+    
+    def draw(self):
+        # Add bookmark at current position using proper PDF outline
+        canvas = self.canv
+        # Create unique bookmark key for this title
+        key = f"bookmark_{id(self)}_{self.title.replace(' ', '_')}"
+        
+        # First bookmark the current page
+        canvas.bookmarkPage(key)
+        
+        # Then add to PDF outline with proper level and title
+        canvas.addOutlineEntry(self.title, key, level=self.level)
+
 # Initialize styles
 styles = getSampleStyleSheet()
 style_normal = styles["Normal"]
