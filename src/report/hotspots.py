@@ -126,9 +126,7 @@ def create_hotspot_table(hotspots):
         ])
         
         # Add code snippet row if available
-        print(f"DEBUG PDF: Hotspot {hotspot.key} - code_snippet exists: {bool(getattr(hotspot, 'code_snippet', None))}, length: {len(getattr(hotspot, 'code_snippet', ''))}")
         if hasattr(hotspot, 'code_snippet') and hotspot.code_snippet and hotspot.code_snippet.strip():
-            print(f"DEBUG PDF: Adding code snippet row for hotspot {hotspot.key}")
             # Create enhanced code style for better formatting
             code_style = ParagraphStyle(
                 "CodeStyle", 
@@ -184,9 +182,6 @@ def create_hotspot_table(hotspots):
                 "",  # Placeholder for span
                 ""   # Placeholder for span  
             ])
-            print(f"DEBUG PDF: Code snippet row added successfully")
-        else:
-            print(f"DEBUG PDF: No code snippet for hotspot {hotspot.key} - skipping code row")
     
     table = Table(table_data, colWidths=[2*cm, 5*cm, 11*cm])
     

@@ -6,6 +6,7 @@ from reportlab.lib.pagesizes import letter, A4
 from reportlab.lib.units import inch, cm
 from data.models import ReportData
 import os
+import time
 
 # Import modular components
 from .utils import detect_sonarqube_mode, draw_logo, BookmarkFlowable
@@ -46,14 +47,25 @@ def add_header_footer(canvas, doc):
     canvas.restoreState()
 
 
-def generate_pdf(report: ReportData, output_path: str = "reflect_sonar_report.pdf"):
+def generate_pdf(report: ReportData, output_path: str = None, project_key: str = None, verbose: bool = False):
     """Generate complete PDF report with all sections"""
     # Detect SonarQube mode from issues
     mode = detect_sonarqube_mode(report.issues)
     
+    if verbose:
+        print(f"Detected SonarQube mode: {mode}")
+        print(f"Report contains:")
+        print(f"   • {len(report.issues)} issues")
+        print(f"   • {len(report.hotspots)} security hotspots")
+        print(f"   • {len(report.measures)} measures")
+    
     # Create the PDF document
+    final_path = output_path if output_path else f"reflect_sonar_report_{project_key}_{time.strftime('%Y%m%d')}.pdf"
+    if verbose:
+        print(f"Creating PDF document: {final_path}")
+    
     doc = SimpleDocTemplate(
-        output_path,
+        final_path,
         pagesize=A4,
         topMargin=3*cm,
         bottomMargin=2*cm,
@@ -68,6 +80,8 @@ def generate_pdf(report: ReportData, output_path: str = "reflect_sonar_report.pd
     elements.append(BookmarkFlowable("Report Overview", 0))
     
     # Generate cover page
+    if verbose:
+        print(f"Generating cover page...")
     generate_cover_page(report, elements)
     
     # Add page break before issues sections
@@ -75,24 +89,37 @@ def generate_pdf(report: ReportData, output_path: str = "reflect_sonar_report.pd
     
     # Add bookmark and generate security issues section
     elements.append(BookmarkFlowable("Security Issues", 0))
+    if verbose:
+        print(f"Generating Security Issues section...")
     generate_security_issues_page(report, elements, mode)
     elements.append(PageBreak())
     
     # Add bookmark and generate reliability issues section
     elements.append(BookmarkFlowable("Reliability Issues", 0))
+    if verbose:
+        print(f"Generating Reliability Issues section...")
     generate_reliability_issues_page(report, elements, mode)
     elements.append(PageBreak())
     
     # Add bookmark and generate maintainability issues section
     elements.append(BookmarkFlowable("Maintainability Issues", 0))
+    if verbose:
+        print(f"Generating Maintainability Issues section...")
     generate_maintainability_issues_page(report, elements, mode)
     elements.append(PageBreak())
     
     # Add bookmark and generate security hotspots section
     elements.append(BookmarkFlowable("Security Hotspots", 0))
+    if verbose:
+        print(f"Generating Security Hotspots section...")
     generate_security_hotspots_page(report, elements)
     
     # Build the PDF
+    if verbose:
+        print(f"Building final PDF document...")
     doc.build(elements, onFirstPage=add_header_footer, onLaterPages=add_header_footer)
     
-    return output_path
+    if verbose:
+        print(f"PDF saved to: {final_path}")
+    
+    return final_path

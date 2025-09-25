@@ -163,9 +163,7 @@ def create_issue_table(issues, mode: str = "STANDARD"):
         ])
         
         # Add code snippet row if available
-        print(f"DEBUG PDF: Issue {issue.key} - code_snippet exists: {bool(issue.code_snippet)}, length: {len(issue.code_snippet) if issue.code_snippet else 0}")
         if issue.code_snippet and issue.code_snippet.strip():
-            print(f"DEBUG PDF: Adding code snippet row for issue {issue.key}")
             # Create enhanced code style for better formatting
             code_style = ParagraphStyle(
                 "CodeStyle", 
@@ -221,9 +219,6 @@ def create_issue_table(issues, mode: str = "STANDARD"):
                 "",  # Placeholder for span
                 ""   # Placeholder for span  
             ])
-            print(f"DEBUG PDF: Code snippet row added successfully")
-        else:
-            print(f"DEBUG PDF: No code snippet for issue {issue.key} - skipping code row")
     
     table = Table(table_data, colWidths=[2*cm, 5*cm, 11*cm])
     

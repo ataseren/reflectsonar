@@ -8,7 +8,7 @@ def get_json(url: str, token: str) -> Dict:
     response.raise_for_status()
     return response.json()
 
-def get_code_snippet(base_url: str, token: str, component: str, line: int, context_lines: int = 3) -> str:
+def get_code_snippet(base_url: str, token: str, component: str, line: int, context_lines: int = 3, verbose: bool = False) -> str:
     """Fetch code snippet for a specific component and line"""
     try:
         # Calculate line range (line ± context_lines)
@@ -26,8 +26,8 @@ def get_code_snippet(base_url: str, token: str, component: str, line: int, conte
         sources = response.get("sources", [])
         
         if not sources:
-            print(f"ERROR: No sources found for {component}:{line}")  # Debug log
-            print(f"ERROR: Full API response: {response}")  # Show what we actually got
+            print(f"ERROR: No sources found for {component}:{line}")
+            print(f"ERROR: Full API response: {response}")
             return ""
         
             
@@ -51,23 +51,19 @@ def get_code_snippet(base_url: str, token: str, component: str, line: int, conte
 
 
 
-def fetch_all_hotspots(base_url: str, token: str, project_key: str) -> Dict:
+def fetch_all_hotspots(base_url: str, token: str, project_key: str, verbose: bool = False) -> Dict:
     """Fetch all hotspots from SonarQube with pagination support"""
     all_hotspots = []
     page = 1
     page_size = 500  # Maximum page size
-    
-    print(f"DEBUG: Starting to fetch all hotspots for project {project_key}")
-    
+        
     while True:
         hotspots_url = f"{base_url}/api/hotspots/search?projectKey={project_key}&ps={page_size}&p={page}"
-        print(f"DEBUG: Fetching hotspots page {page} with page size {page_size}")
         
         try:
             page_data = get_json(hotspots_url, token)
             page_hotspots = page_data.get("hotspots", [])
             
-            print(f"DEBUG: Page {page} returned {len(page_hotspots)} hotspots")
             all_hotspots.extend(page_hotspots)
             
             # Check if we have more pages
@@ -75,10 +71,7 @@ def fetch_all_hotspots(base_url: str, token: str, project_key: str) -> Dict:
             total = paging.get("total", 0)
             current_total = len(all_hotspots)
             
-            print(f"DEBUG: Current total: {current_total}, API total: {total}")
-            
             if current_total >= total:
-                print(f"DEBUG: Fetched all {current_total} hotspots")
                 break
                 
             page += 1
@@ -98,7 +91,7 @@ def fetch_all_hotspots(base_url: str, token: str, project_key: str) -> Dict:
     }
 
 
-def get_report_data(base_url: str, token: str, project_key: str) -> ReportData:
+def get_report_data(base_url: str, token: str, project_key: str, verbose: bool = False) -> ReportData:
 
     metric_keys = [
     "software_quality_security_rating",
@@ -121,38 +114,55 @@ def get_report_data(base_url: str, token: str, project_key: str) -> ReportData:
     measures_url = f"{base_url}/api/measures/component?component={project_key}&metricKeys={metrics_param}"
     settings_url = f"{base_url}/api/settings/values?keys=sonar.multi-quality-mode.enabled"
 
+    if verbose:
+        print(f"Fetching project component data...")
     component_data = get_json(component_url, token)
+    
+    if verbose:
+        print(f"Fetching issues data...")
     issues_data = get_json(issues_url, token)
+    
+    if verbose:
+        print(f"Fetching measures data...")
     measures_data = get_json(measures_url, token)
+    
+    if verbose:
+        print(f"Fetching SonarQube settings...")
     settings_data = get_json(settings_url, token)
     
+    if verbose:
+        print(f"Fetching security hotspots (with pagination)...")
     # Fetch ALL hotspots with pagination
-    hotspots_data = fetch_all_hotspots(base_url, token, project_key)
+    hotspots_data = fetch_all_hotspots(base_url, token, project_key, verbose)
 
     project = SonarQubeProject.from_dict(component_data)
 
     # Process issues and fetch code snippets
     issues: List[SonarQubeIssue] = []
     total_issues = len(issues_data.get("issues", []))
-    print(f"DEBUG: Processing {total_issues} issues...")
+    
+    if verbose:
+        print(f"Processing {total_issues} issues and fetching code snippets...")
     
     for i, issue_data in enumerate(issues_data.get("issues", [])):
         issue = SonarQubeIssue.from_dict(issue_data)
-        print(f"DEBUG: Issue {i+1}/{total_issues}: {issue.key}, component: {issue.component}, line: {issue.line}")
+        
+        if verbose and (i + 1) % 10 == 0:  # Progress every 10 issues
+            print(f"   Processed {i + 1}/{total_issues} issues...")
         
         # Fetch code snippet if the issue has a line number
         if issue.line:
-            print(f"DEBUG: Fetching code snippet for issue {issue.key}")
-            code_snippet = get_code_snippet(base_url, token, issue.component, issue.line)
+            if verbose and total_issues <= 20:  # Show detail for small datasets
+                print(f"      Fetching code snippet for {issue.key} at line {issue.line}")
+            code_snippet = get_code_snippet(base_url, token, issue.component, issue.line, verbose)
             
             # If no code snippet was fetched, create a more realistic fallback
             if not code_snippet.strip():
                 code_snippet = "No code snippet available for this issue."
             
             issue.code_snippet = code_snippet
-            print(f"DEBUG: Code snippet result: {'Found' if code_snippet else 'Empty'} ({len(code_snippet)} chars)")
         else:
-            print(f"DEBUG: Issue {issue.key} has no line number, skipping code snippet")
+            print(f"ERROR: Issue {issue.key} has no line number, skipping code snippet")
             
         issues.append(issue)
 
@@ -164,29 +174,44 @@ def get_report_data(base_url: str, token: str, project_key: str) -> ReportData:
     # Process hotspots and fetch code snippets
     hotspots: List[SonarQubeHotspot] = []
     total_hotspots = len(hotspots_data.get("hotspots", []))
-    print(f"DEBUG: Processing {total_hotspots} hotspots...")
+    
+    if verbose:
+        print(f"Processing {total_hotspots} security hotspots and fetching code snippets...")
     
     for i, hotspot_data in enumerate(hotspots_data.get("hotspots", [])):
         hotspot = SonarQubeHotspot.from_dict(hotspot_data)
-        print(f"DEBUG: Hotspot {i+1}/{total_hotspots}: {hotspot.key}, component: {hotspot.component}, line: {hotspot.line}")
+        
+        if verbose and (i + 1) % 5 == 0:  # Progress every 5 hotspots
+            print(f"   Processed {i + 1}/{total_hotspots} hotspots...")
         
         # Fetch code snippet if the hotspot has a line number
         if hotspot.line:
-            print(f"DEBUG: Fetching code snippet for hotspot {hotspot.key}")
-            code_snippet = get_code_snippet(base_url, token, hotspot.component, hotspot.line)
+            if verbose and total_hotspots <= 10:  # Show detail for small datasets
+                print(f"      Fetching code snippet for hotspot {hotspot.key} at line {hotspot.line}")
+            code_snippet = get_code_snippet(base_url, token, hotspot.component, hotspot.line, verbose)
             
             # If no code snippet was fetched, create a security-focused fallback
             if not code_snippet.strip():
                 code_snippet = "No code snippet available for this hotspot."
             
             hotspot.code_snippet = code_snippet
-            print(f"DEBUG: Code snippet result: {'Found' if code_snippet else 'Empty'} ({len(code_snippet)} chars)")
         else:
-            print(f"DEBUG: Hotspot {hotspot.key} has no line number, skipping code snippet")
-            
+            if verbose:
+                print(f"Hotspot {hotspot.key} has no line number, skipping code snippet")
+
         hotspots.append(hotspot)
 
     settings: bool = settings_data.get("sonar.multi-quality-mode.enabled", {}).get("value", "true").lower() == "true"
+
+    if verbose:
+        print(f"Data collection summary:")
+        print(f"   • Project: {project.name}")
+        print(f"   • Issues collected: {len(issues)}")
+        print(f"   • Hotspots collected: {len(hotspots)}")
+        print(f"   • Measures collected: {len(measures)}")
+        print(f"   • MQR mode enabled: {settings}")
+        print(f"   • Issues with code snippets: {sum(1 for i in issues if i.code_snippet and i.code_snippet.strip())}")
+        print(f"   • Hotspots with code snippets: {sum(1 for h in hotspots if h.code_snippet and h.code_snippet.strip())}")
 
     return ReportData(
         project=project,
