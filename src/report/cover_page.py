@@ -1,15 +1,16 @@
-"""
-Cover page generation for PDF reports
-"""
+# Cover page generation module for PDF reports
+from reportlab.platypus import Paragraph, Spacer, Table, TableStyle
+from reportlab.lib.units import cm
+from reportlab.lib import colors
+
 from datetime import datetime
 from .utils import (
     style_title, style_subtitle, style_meta, badge, score_to_grade, 
-    get_measure_value, Paragraph, Spacer, Table, TableStyle, colors, cm
+    get_measure_value
 )
 
-
+# Create an issue count block with grade badge
 def issue_block(title, value, grade):
-    """Create an issue count block with grade badge"""
     content = [
         Paragraph(f"<b>{title}</b>", None),  # Will use style_normal from caller
         Paragraph(f"<font size=14><b>{value}</b></font> Open Issues", None)
@@ -23,9 +24,8 @@ def issue_block(title, value, grade):
         ("BOTTOMPADDING", (0, 0), (-1, -1), 0),
     ]))
 
-
+# Create a project data block with grade badge
 def project_data_block(title, value, grade):
-    """Create a project data block with grade badge"""
     content = [
         Paragraph(f"<b>{title}</b>", None),
         Paragraph(f"<font size=14><b>{value}</b></font>", None)
@@ -39,9 +39,8 @@ def project_data_block(title, value, grade):
         ("BOTTOMPADDING", (0, 0), (-1, -1), 0),
     ]))
 
-
+# Create a security hotspot block
 def hotspot_block(title, value):
-    """Create a security hotspot block"""
     content = [
         Paragraph(f"<b>{title}</b>", None),
         Paragraph(f"<font size=14><b>{value}</b></font> Open Issues", None)
@@ -55,9 +54,8 @@ def hotspot_block(title, value):
         ("BOTTOMPADDING", (0, 0), (-1, -1), 0),
     ]))
 
-
+# Generate the cover page elements
 def generate_cover_page(report, elements):
-    """Generate the cover page elements"""
     # Add space for the logo at the top
     elements.append(Spacer(1, 0.5*cm))
     

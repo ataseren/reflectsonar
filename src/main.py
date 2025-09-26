@@ -2,8 +2,8 @@ from report.pdfgen import generate_pdf
 from api.get_data import get_report_data
 import argparse
 
+# Parse command line arguments
 def parse_arguments():
-    """Parse command line arguments"""
     parser = argparse.ArgumentParser(description='Generate PDF reports from SonarQube data')
     parser.add_argument('-c', '--config', default='config.yaml',
                         help='Path to configuration file (default: config.yaml)')
@@ -17,7 +17,7 @@ def parse_arguments():
 args = parse_arguments()
 
 if args.verbose:
-    print(f"🚀 Starting ReflectSonar PDF Report Generation")
+    print("Starting ReflectSonar PDF Report Generation")
     print(f"📊 Project: {args.project}")
     print(f"🌐 SonarQube URL: {args.url}")
     print(f"📄 Output: {args.output or f'reflect_sonar_report_{args.project}_[timestamp].pdf'}")
@@ -27,4 +27,4 @@ report_data = get_report_data(args.url, args.token, args.project, verbose=args.v
 generate_pdf(report_data, args.output, args.project, verbose=args.verbose)
 
 if args.verbose:
-    print(f"✅ PDF report generation completed successfully!")
+    print("PDF report generation completed successfully!")

@@ -1,13 +1,15 @@
+# Module to fetch data from SonarQube API
+from typing import Dict, List
 import requests
 from data.models import SonarQubeProject, SonarQubeIssue, SonarQubeMeasure, SonarQubeHotspot, ReportData
-from datetime import datetime
-from typing import Dict, List
 
+# Helper function to make authenticated GET requests
 def get_json(url: str, token: str) -> Dict:
     response = requests.get(url, auth=(token, ""))
     response.raise_for_status()
     return response.json()
 
+# Function to fetch code snippet for a specific issue or hotspot
 def get_code_snippet(base_url: str, token: str, component: str, line: int, context_lines: int = 3, verbose: bool = False) -> str:
     """Fetch code snippet for a specific component and line"""
     try:
@@ -30,7 +32,6 @@ def get_code_snippet(base_url: str, token: str, component: str, line: int, conte
             print(f"ERROR: Full API response: {response}")
             return ""
         
-            
         # Format the code snippet with line numbers
         snippet_lines = []
         for source in sources:
@@ -42,15 +43,13 @@ def get_code_snippet(base_url: str, token: str, component: str, line: int, conte
             
         result = "\n".join(snippet_lines)
         return result
-        
     except Exception as e:
         print(f"ERROR: Error fetching code snippet for {component}:{line}: {e}")  # Debug log
         import traceback
         traceback.print_exc()
         return ""
 
-
-
+# Function to fetch all hotspots with pagination
 def fetch_all_hotspots(base_url: str, token: str, project_key: str, verbose: bool = False) -> Dict:
     """Fetch all hotspots from SonarQube with pagination support"""
     all_hotspots = []
@@ -90,7 +89,7 @@ def fetch_all_hotspots(base_url: str, token: str, project_key: str, verbose: boo
         }
     }
 
-
+# Main function to get all report data
 def get_report_data(base_url: str, token: str, project_key: str, verbose: bool = False) -> ReportData:
 
     metric_keys = [
@@ -115,24 +114,23 @@ def get_report_data(base_url: str, token: str, project_key: str, verbose: bool =
     settings_url = f"{base_url}/api/settings/values?keys=sonar.multi-quality-mode.enabled"
 
     if verbose:
-        print(f"Fetching project component data...")
+        print("Fetching project component data...")
     component_data = get_json(component_url, token)
     
     if verbose:
-        print(f"Fetching issues data...")
+        print("Fetching issues data...")
     issues_data = get_json(issues_url, token)
     
     if verbose:
-        print(f"Fetching measures data...")
+        print("Fetching measures data...")
     measures_data = get_json(measures_url, token)
     
     if verbose:
-        print(f"Fetching SonarQube settings...")
+        print("Fetching SonarQube settings...")
     settings_data = get_json(settings_url, token)
     
     if verbose:
-        print(f"Fetching security hotspots (with pagination)...")
-    # Fetch ALL hotspots with pagination
+        print("Fetching security hotspots (with pagination)...")
     hotspots_data = fetch_all_hotspots(base_url, token, project_key, verbose)
 
     project = SonarQubeProject.from_dict(component_data)
@@ -154,9 +152,8 @@ def get_report_data(base_url: str, token: str, project_key: str, verbose: bool =
         if issue.line:
             if verbose and total_issues <= 20:  # Show detail for small datasets
                 print(f"      Fetching code snippet for {issue.key} at line {issue.line}")
-            code_snippet = get_code_snippet(base_url, token, issue.component, issue.line, verbose)
-            
-            # If no code snippet was fetched, create a more realistic fallback
+            code_snippet = get_code_snippet(base_url, token, issue.component, issue.line, 3, verbose)
+
             if not code_snippet.strip():
                 code_snippet = "No code snippet available for this issue."
             
@@ -188,7 +185,7 @@ def get_report_data(base_url: str, token: str, project_key: str, verbose: bool =
         if hotspot.line:
             if verbose and total_hotspots <= 10:  # Show detail for small datasets
                 print(f"      Fetching code snippet for hotspot {hotspot.key} at line {hotspot.line}")
-            code_snippet = get_code_snippet(base_url, token, hotspot.component, hotspot.line, verbose)
+            code_snippet = get_code_snippet(base_url, token, hotspot.component, hotspot.line, 3, verbose)
             
             # If no code snippet was fetched, create a security-focused fallback
             if not code_snippet.strip():
@@ -204,7 +201,7 @@ def get_report_data(base_url: str, token: str, project_key: str, verbose: bool =
     settings: bool = settings_data.get("sonar.multi-quality-mode.enabled", {}).get("value", "true").lower() == "true"
 
     if verbose:
-        print(f"Data collection summary:")
+        print("Data collection summary:")
         print(f"   • Project: {project.name}")
         print(f"   • Issues collected: {len(issues)}")
         print(f"   • Hotspots collected: {len(hotspots)}")
@@ -222,8 +219,3 @@ def get_report_data(base_url: str, token: str, project_key: str, verbose: bool =
         quality_profiles=[],
         mode_setting=settings
     )
-
-
-#######################
-#### Add rules list to the report, maybe at the end
-#######################

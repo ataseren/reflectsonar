@@ -1,29 +1,12 @@
-"""from reportlab.platypus import (
-    SimpleDocTemplate, Paragraph, Spacer, Image, Table, TableStyle, Flowable
-)
-from reportlab.lib.pagesizes import A4
-from reportlab.lib.units import cm
+from reportlab.platypus import Flowable
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.lib import colors
 from reportlab.lib.colors import HexColor
 from reportlab.graphics.shapes import Drawing, Circle, String
-from reportlab.lib.enums import TA_CENTER
-import osilities and styles for PDF report generation
-"""
-from reportlab.platypus import (
-    SimpleDocTemplate, Paragraph, Spacer, Image, Table, TableStyle, Flowable, PageBreak, KeepTogether
-)
-from reportlab.lib.pagesizes import A4
-from reportlab.lib.units import cm
-from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
-from reportlab.lib import colors
-from reportlab.lib.colors import HexColor
-from reportlab.graphics.shapes import Drawing, Circle, String
-from reportlab.lib.enums import TA_CENTER, TA_LEFT
 import os
 
+# Custom flowable to add bookmarks to PDF
 class BookmarkFlowable(Flowable):
-    """Custom flowable to add bookmarks to PDF"""
     def __init__(self, title, level=0):
         self.title = title
         self.level = level
@@ -53,9 +36,8 @@ style_section_title = ParagraphStyle("SectionTitle", parent=styles["Heading1"], 
 style_issue_title = ParagraphStyle("IssueTitle", parent=styles["Heading2"], fontSize=12, spaceAfter=6)
 style_issue_meta = ParagraphStyle("IssueMeta", parent=style_normal, fontSize=9, textColor=colors.gray)
 
-
+# Custom flowable for creating circular badges
 class CircleBadge(Flowable):
-    """Custom flowable for creating circular badges"""
     def __init__(self, letter, radius=12, color=HexColor("#D50000")):
         super().__init__()
         self.letter = letter
@@ -70,9 +52,8 @@ class CircleBadge(Flowable):
                      fontSize=self.radius, textAnchor="middle"))
         d.drawOn(self.canv, 0, 0)
 
-
+# Create a colored grade badge
 def badge(letter):
-    """Create a colored grade badge"""
     color_map = {
         "A": HexColor("#D1FADF"),
         "B": HexColor("#E1F4A9"),
@@ -82,9 +63,8 @@ def badge(letter):
     }
     return CircleBadge(letter, radius=12, color=color_map.get(letter, HexColor("#9E9E9E")))
 
-
+# Convert numeric score to letter grade
 def score_to_grade(score: float) -> str:
-    """Convert numeric score to letter grade"""
     if score <= 1.0:
         return "A"
     elif score <= 2.0:
@@ -96,42 +76,9 @@ def score_to_grade(score: float) -> str:
     else:
         return "E"
 
-
+# Extract measure value from measures dictionary
 def get_measure_value(measures, metric, default="0"):
-    """Extract measure value from measures dictionary"""
     return float(measures.get(metric).value if metric in measures else default)
-
-
-def detect_sonarqube_mode(issues):
-    """Detect if SonarQube instance is using Standard or MQR mode based on issue data"""
-    # Check if any issues have impacts field (MQR mode indicator)
-    has_impacts = any(issue.impacts for issue in issues)
-    
-    # Check severity types used
-    severities = set()
-    for issue in issues:
-        severities.add(issue.severity.upper())
-        # Also check impact severities if available
-        if issue.impacts:
-            for impact in issue.impacts:
-                if 'severity' in impact:
-                    severities.add(impact['severity'].upper())
-    
-    # MQR mode uses HIGH, MEDIUM, LOW
-    mqr_severities = {'HIGH', 'MEDIUM', 'LOW'}
-    # Standard mode uses BLOCKER, CRITICAL, MAJOR, MINOR, INFO
-    standard_severities = {'BLOCKER', 'CRITICAL', 'MAJOR', 'MINOR', 'INFO'}
-    
-    # If we have impacts and MQR severities, it's MQR mode
-    if has_impacts and mqr_severities.intersection(severities):
-        return "MQR"
-    # If we have standard severities, it's standard mode
-    elif standard_severities.intersection(severities):
-        return "STANDARD"
-    # Default fallback
-    else:
-        return "STANDARD"
-
 
 def get_severity_order(severity: str, mode: str = "STANDARD") -> int:
     """Return numeric order for severity sorting (lower number = higher priority)"""
@@ -199,10 +146,8 @@ def draw_logo(canvas, logo_path, x, y, width, height):
             canvas.setFillColor(colors.black)
             canvas.setFont("Helvetica", 8)
             canvas.drawString(x + 5, y + height/2, "Logo")
-    except Exception as e:
-        # Silent fail - don't break the report if logo fails
-        pass
-
+    except Exception:
+        print("WARNING: Failed to add the logo.")
 
 def severity_badge(severity: str, mode: str = "STANDARD"):
     """Create a colored badge for issue severity"""

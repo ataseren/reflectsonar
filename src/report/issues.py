@@ -1,13 +1,18 @@
-"""
-Issue pages generation for PDF reports
-"""
-import re
+# Issue pages generation for PDF reports
+
+from reportlab.platypus import (
+     Paragraph, Spacer, Table, TableStyle, KeepTogether
+)
+from reportlab.lib.units import cm
+from reportlab.lib.styles import ParagraphStyle
+from reportlab.lib import colors
 
 from .utils import (
-    style_section_title, style_issue_meta, style_normal, Paragraph, Spacer, 
-    Table, TableStyle, colors, cm, get_severity_order, get_severity_list,
-    severity_badge, ParagraphStyle, KeepTogether, BookmarkFlowable
+    style_section_title, style_issue_meta, style_normal, 
+    get_severity_order, get_severity_list,
+    severity_badge, BookmarkFlowable
 )
+
 
 
 def get_issues_by_impact_category(issues, category: str, mode: str = "STANDARD"):

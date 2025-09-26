@@ -1,15 +1,13 @@
-"""
-Main PDF generation module - orchestrates all report components
-"""
+# Main PDF generation module - orchestrates all report components
+
 from reportlab.platypus import SimpleDocTemplate, PageBreak
-from reportlab.lib.pagesizes import letter, A4
-from reportlab.lib.units import inch, cm
+from reportlab.lib.pagesizes import A4
+from reportlab.lib.units import cm
 from data.models import ReportData
 import os
 import time
 
-# Import modular components
-from .utils import detect_sonarqube_mode, draw_logo, BookmarkFlowable
+from .utils import draw_logo, BookmarkFlowable
 from .cover_page import generate_cover_page
 from .issues import (
     generate_security_issues_page,
@@ -18,9 +16,8 @@ from .issues import (
 )
 from .hotspots import generate_security_hotspots_page
 
-
+# Function to add header and footer on each page
 def add_header_footer(canvas, doc):
-    """Add header and footer to each page"""
     canvas.saveState()
     
     # Add logo to all pages (including cover page)
@@ -46,15 +43,14 @@ def add_header_footer(canvas, doc):
     
     canvas.restoreState()
 
-
+# Main function to generate the PDF report
 def generate_pdf(report: ReportData, output_path: str = None, project_key: str = None, verbose: bool = False):
-    """Generate complete PDF report with all sections"""
-    # Detect SonarQube mode from issues
-    mode = detect_sonarqube_mode(report.issues)
+    # Determine SonarQube mode
+    mode = "MQR" if report.mode_setting else "STANDARD"
     
     if verbose:
         print(f"Detected SonarQube mode: {mode}")
-        print(f"Report contains:")
+        print("Report contains:")
         print(f"   • {len(report.issues)} issues")
         print(f"   • {len(report.hotspots)} security hotspots")
         print(f"   • {len(report.measures)} measures")
@@ -81,7 +77,7 @@ def generate_pdf(report: ReportData, output_path: str = None, project_key: str =
     
     # Generate cover page
     if verbose:
-        print(f"Generating cover page...")
+        print("Generating cover page...")
     generate_cover_page(report, elements)
     
     # Add page break before issues sections
@@ -90,33 +86,33 @@ def generate_pdf(report: ReportData, output_path: str = None, project_key: str =
     # Add bookmark and generate security issues section
     elements.append(BookmarkFlowable("Security Issues", 0))
     if verbose:
-        print(f"Generating Security Issues section...")
+        print("Generating Security Issues section...")
     generate_security_issues_page(report, elements, mode)
     elements.append(PageBreak())
     
     # Add bookmark and generate reliability issues section
     elements.append(BookmarkFlowable("Reliability Issues", 0))
     if verbose:
-        print(f"Generating Reliability Issues section...")
+        print("Generating Reliability Issues section...")
     generate_reliability_issues_page(report, elements, mode)
     elements.append(PageBreak())
     
     # Add bookmark and generate maintainability issues section
     elements.append(BookmarkFlowable("Maintainability Issues", 0))
     if verbose:
-        print(f"Generating Maintainability Issues section...")
+        print("Generating Maintainability Issues section...")
     generate_maintainability_issues_page(report, elements, mode)
     elements.append(PageBreak())
     
     # Add bookmark and generate security hotspots section
     elements.append(BookmarkFlowable("Security Hotspots", 0))
     if verbose:
-        print(f"Generating Security Hotspots section...")
+        print("Generating Security Hotspots section...")
     generate_security_hotspots_page(report, elements)
     
     # Build the PDF
     if verbose:
-        print(f"Building final PDF document...")
+        print("Building final PDF document...")
     doc.build(elements, onFirstPage=add_header_footer, onLaterPages=add_header_footer)
     
     if verbose:

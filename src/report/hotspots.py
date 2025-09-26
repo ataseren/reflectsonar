@@ -1,13 +1,16 @@
-"""
-Security Hotspots pages generation for PDF reports
-"""
-import re
-from .utils import (
-    style_section_title, style_issue_meta, style_normal, Paragraph, Spacer, 
-    Table, TableStyle, colors, cm, ParagraphStyle, KeepTogether, CircleBadge,
-    BookmarkFlowable
-)
+# Security Hotspots pages generation for PDF reports
 
+from reportlab.platypus import (
+     Paragraph, Spacer, Table, TableStyle, KeepTogether
+)
+from reportlab.lib.units import cm
+from reportlab.lib.styles import ParagraphStyle
+from reportlab.lib import colors
+
+from .utils import (
+    style_section_title, style_issue_meta, style_normal,
+    CircleBadge, BookmarkFlowable
+)
 
 def create_hotspot_table(hotspots):
     """Create a table displaying security hotspots with vulnerability probability, rule, and message"""
