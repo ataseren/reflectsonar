@@ -53,7 +53,7 @@ def create_issue_table(issues, mode: str = "STANDARD"):
         content = [
             Spacer(1, 5*cm),
             Paragraph(
-                "<i>No issues found in this category. This indicates good code quality in this area.</i>", 
+                "<i>No issues found in this category.</i>", 
                 style_normal
             )
         ]
