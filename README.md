@@ -1,5 +1,9 @@
 # ReflectSonar
 
+<p align="center">
+  <img src="./rs-logo.png" width="400" alt="reflectsonar-logo">
+</p>
+
 **PDF Report Generator for SonarQube Analysis**
 
 ReflectSonar is a simple Python tool for generating a PDF report of a project scan conducted by a SonarQube instance. It reads the data via API and generates a PDF report for general metrics, issues and security hotspots.
@@ -88,13 +92,6 @@ python src/main.py -p "my-app" -t "squ_abc123..." --verbose
 ## Contributing
 
 We welcome contributions! Please see our [Contributing Guidelines](CONTRIBUTING.md) for details.
-
-Have an idea for improvement? We'd love to hear it!
--  Enhanced visualizations and charts
--  Multi-project portfolio reports  
--  Web interface for report generation
--  Integration with Jira/Slack/Teams
--  Historical trend analysis
 
 [Open an issue](https://github.com/ataseren/reflectsonar/issues) to discuss your ideas!
 

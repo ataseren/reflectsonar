@@ -1,0 +1,17 @@
+# ReflectSonar Configuration File
+# Values here override command line arguments
+
+# SonarQube project key
+project: your-project-key
+
+# SonarQube user token
+token: squ_your_user_token_here
+
+# SonarQube server url 
+url: http://localhost:9000
+
+# Output PDF file path
+output: reports/quality-report.pdf
+
+# Enable verbose logging (bool)
+verbose: false
