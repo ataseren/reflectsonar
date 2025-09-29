@@ -1,3 +1,4 @@
+# Utility functions and classes for the report generation
 from reportlab.platypus import Flowable
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.lib import colors
@@ -80,8 +81,8 @@ def score_to_grade(score: float) -> str:
 def get_measure_value(measures, metric, default="0"):
     return float(measures.get(metric).value if metric in measures else default)
 
+# Get numeric order for severity sorting (lower number = higher priority)
 def get_severity_order(severity: str, mode: str = "STANDARD") -> int:
-    """Return numeric order for severity sorting (lower number = higher priority)"""
     if mode == "MQR":
         severity_map = {
             "BLOCKER": 1,
@@ -100,12 +101,11 @@ def get_severity_order(severity: str, mode: str = "STANDARD") -> int:
         }
     return severity_map.get(severity.upper(), 99)
 
-
+# Return color for severity badge
 def get_severity_color(severity: str, mode: str = "STANDARD") -> HexColor:
-    """Return color for severity badge"""
     if mode == "MQR":
         color_map = {
-            "BLOCKER": HexColor("#6B0101"),
+            "BLOCKER": HexColor("#940404"),
             "HIGH": HexColor("#EB0A0A"),
             "MEDIUM": HexColor("#FF6600"),
             "LOW": HexColor("#FFD001"),
@@ -121,20 +121,17 @@ def get_severity_color(severity: str, mode: str = "STANDARD") -> HexColor:
         }
     return color_map.get(severity.upper(), HexColor("#9E9E9E"))
 
-
+# Get ordered list of severities for the given mode
 def get_severity_list(mode: str = "STANDARD") -> list:
-    """Get ordered list of severities for the given mode"""
     if mode == "MQR":
-        return ["HIGH", "MEDIUM", "LOW"]
+        return ["BLOCKER","HIGH", "MEDIUM", "LOW", "INFO"]
     else:  # STANDARD mode
         return ["BLOCKER", "CRITICAL", "MAJOR", "MINOR", "INFO"]
 
-
+# Draw logo on the canvas with transparency handling
 def draw_logo(canvas, logo_path, x, y, width, height):
-    """Draw logo with enhanced transparency handling"""
     try:
         if os.path.exists(logo_path):
-
             # Method 1: Use mask='auto' for automatic transparency detection
             canvas.drawImage(logo_path, x, y, width=width, height=height, 
                             preserveAspectRatio=True, mask='auto')
@@ -149,6 +146,6 @@ def draw_logo(canvas, logo_path, x, y, width, height):
     except Exception:
         print("WARNING: Failed to add the logo.")
 
-def severity_badge(severity: str, mode: str = "STANDARD"):
-    """Create a colored badge for issue severity"""
+# Create a colored badge for issue severity
+def severity_badge(severity: str, mode: str = "MQR"):
     return CircleBadge(severity[0].upper(), radius=8, color=get_severity_color(severity, mode))

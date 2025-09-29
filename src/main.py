@@ -4,9 +4,11 @@ import argparse
 import sys
 import signal
 import yaml
+import traceback
 
+
+# Load configuration from YAML file
 def load_config(config_path):
-    """Load YAML configuration file"""
     if not config_path:
         return {}
     try:
@@ -16,6 +18,7 @@ def load_config(config_path):
         print(f"Warning: Could not load config file {config_path}: {e}")
         return {}
 
+# Parse command-line arguments
 def parse_arguments():
     parser = argparse.ArgumentParser(description='Generate PDF reports from SonarQube data')
     parser.add_argument('-c', '--config', default=None,
@@ -50,8 +53,8 @@ def parse_arguments():
     
     return args
 
+# Handle Ctrl+C interrupt gracefully
 def handle_interrupt(signum, frame):
-    """Handle Ctrl+C interrupt gracefully"""
     print("\n")
     print("🛑 Report generation interrupted by user")
     print("✨ Thanks for using ReflectSonar!")
@@ -130,7 +133,6 @@ def main():
             print(f"\n❌ Error generating report: {error_msg}")
             
         if args.verbose if 'args' in locals() else False:
-            import traceback
             print("\n🔍 Detailed error information:")
             traceback.print_exc()
         else:

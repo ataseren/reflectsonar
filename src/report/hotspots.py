@@ -1,5 +1,4 @@
-# Security Hotspots pages generation for PDF reports
-
+# Hotspot pages generation module for the reports
 from reportlab.platypus import (
      Paragraph, Spacer, Table, TableStyle, KeepTogether
 )
@@ -11,9 +10,11 @@ from .utils import (
     style_section_title, style_issue_meta, style_normal,
     CircleBadge, BookmarkFlowable
 )
+import re
+import html
 
+# Create a table displaying security hotspots with vulnerability probability, rule, and message
 def create_hotspot_table(hotspots):
-    """Create a table displaying security hotspots with vulnerability probability, rule, and message"""
     if not hotspots:
         # Create a list with spacer and paragraph for better formatting
         content = [
@@ -83,13 +84,6 @@ def create_hotspot_table(hotspots):
         if hotspot.line:
             filename += f"<br/><b>(Line {hotspot.line})</b>"
         
-        # Format rule and message - clean HTML content to prevent parsing errors
-        rule_name = hotspot.rule_name if hotspot.rule_name else (hotspot.rule.split(':')[-1] if ':' in hotspot.rule else hotspot.rule)
-        
-        # Clean HTML content from the message to prevent ReportLab parsing issues
-        import re
-        import html
-        
         # Remove all HTML tags from the message to prevent parsing conflicts
         cleaned_message = re.sub(r'<[^>]+>', '', hotspot.message)
         # Also clean up any HTML entities that might remain
@@ -101,7 +95,7 @@ def create_hotspot_table(hotspots):
             formatted_category = format_security_category_name(hotspot.security_category)
             category_info = f"<br/><font size=8 color='gray'>Category: {formatted_category}</font>"
         
-        rule_and_message = f"<b>{rule_name}</b><br/>{cleaned_message}{category_info}"
+        rule_and_message = f"<b>{hotspot.ruleKey }</b><br/>{cleaned_message}{category_info}"
         
         # Create vulnerability probability badge
         prob_colors = {
@@ -230,9 +224,8 @@ def create_hotspot_table(hotspots):
     
     return table
 
-
+# Create a complete security hotspot section with title, summary, and table
 def create_hotspot_section(title: str, hotspots, elements):
-    """Create a complete security hotspot section with title, summary, and table"""
     elements.append(Paragraph(title, style_section_title))
     
     # Add hotspot count summary
@@ -262,9 +255,8 @@ def create_hotspot_section(title: str, hotspots, elements):
     elements.append(create_hotspot_table(hotspots))
     elements.append(Spacer(1, 1*cm))
 
-
+# Categorize hotspots by their security category
 def categorize_hotspots_by_security_category(hotspots):
-    """Categorize hotspots by their security category"""
     categories = {}
     uncategorized = []
     
@@ -279,8 +271,8 @@ def categorize_hotspots_by_security_category(hotspots):
     
     return categories, uncategorized
 
+# Convert SonarQube security category keys to human-readable names
 def format_security_category_name(category_key: str) -> str:
-    """Convert SonarQube security category keys to human-readable names"""
     category_mapping = {
         # Add your mappings here, for example:
         "sql-injection": "SQL Injection",
@@ -310,9 +302,8 @@ def format_security_category_name(category_key: str) -> str:
     # Return mapped name or fallback to formatted version
     return category_mapping.get(category_key, category_key.replace('-', ' ').replace('_', ' ').title())
 
-
+# Generate Security Hotspots section with categorization
 def generate_security_hotspots_page(report, elements):
-    """Generate Security Hotspots section with categorization"""
     # Check if we have hotspots to categorize
     if not report.hotspots:
         create_hotspot_section("Security Hotspots", report.hotspots, elements)

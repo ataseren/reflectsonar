@@ -1,5 +1,4 @@
-# Issue pages generation for PDF reports
-
+# Issue pages generation module for the reports
 from reportlab.platypus import (
      Paragraph, Spacer, Table, TableStyle, KeepTogether
 )
@@ -12,24 +11,17 @@ from .utils import (
     get_severity_order, get_severity_list,
     severity_badge, BookmarkFlowable
 )
+import re
+import html
 
-
-
+# Get issues by impact category (SECURITY, RELIABILITY, MAINTAINABILITY)
 def get_issues_by_impact_category(issues, category: str, mode: str = "STANDARD"):
-    """Get issues by software quality impact category (SECURITY, RELIABILITY, MAINTAINABILITY)"""
     filtered_issues = []
     
     for issue in issues:
         # For MQR mode, always use impacts field
-        if mode == "MQR" and issue.impacts:
+        if issue.impacts:
             # Look for the category in the impacts
-            for impact in issue.impacts:
-                if impact.get('softwareQuality', '').upper() == category.upper():
-                    filtered_issues.append(issue)
-                    break
-        # For Standard mode or fallback
-        elif issue.impacts:
-            # Look for the category in the impacts (modern SonarQube)
             for impact in issue.impacts:
                 if impact.get('softwareQuality', '').upper() == category.upper():
                     filtered_issues.append(issue)
@@ -50,9 +42,8 @@ def get_issues_by_impact_category(issues, category: str, mode: str = "STANDARD")
     
     return filtered_issues
 
-
+# Create a table displaying issues with severity, rule, and message
 def create_issue_table(issues, mode: str = "STANDARD"):
-    """Create a table displaying issues with severity, rule, and message"""
     if not issues:
         # Create a list with spacer and paragraph for better formatting
         content = [
@@ -126,21 +117,14 @@ def create_issue_table(issues, mode: str = "STANDARD"):
         if issue.line:
             filename += f"<br/><b>(Line {issue.line})</b>"
         
-        # Format rule and message - clean HTML in the message to prevent parsing errors
-        rule_name = issue.rule.split(':')[-1] if ':' in issue.rule else issue.rule
-        
-        # Clean HTML content from the message to prevent ReportLab parsing issues
-        import re
-        
         # Remove all HTML tags from the message to prevent parsing conflicts
         # This preserves the text content while removing problematic markup
         cleaned_message = re.sub(r'<[^>]+>', '', issue.message)
         
         # Also clean up any HTML entities that might remain
-        import html
         cleaned_message = html.unescape(cleaned_message)
         
-        rule_and_message = f"<b>{rule_name}</b><br/>{cleaned_message}"
+        rule_and_message = f"<b>{issue.rule}</b><br/>{cleaned_message}"
         
         # Get the appropriate severity for badge
         display_severity = issue.severity
@@ -269,9 +253,8 @@ def create_issue_table(issues, mode: str = "STANDARD"):
     
     return table
 
-
+# Create a complete issue section with title, summary, and table
 def create_issue_section(title: str, issues, elements, mode: str = "STANDARD"):
-    """Create a complete issue section with title, summary, and table"""
     elements.append(Paragraph(title, style_section_title))
     
     # Add issue count summary
@@ -313,20 +296,17 @@ def create_issue_section(title: str, issues, elements, mode: str = "STANDARD"):
     elements.append(create_issue_table(issues, mode))
     elements.append(Spacer(1, 1*cm))
 
-
+# Generate Security issues section
 def generate_security_issues_page(report, elements, mode):
-    """Generate Security issues section"""
     security_issues = get_issues_by_impact_category(report.issues, "SECURITY", mode)
     create_issue_section("Security Issues", security_issues, elements, mode)
 
-
+# Generate Reliability issues section
 def generate_reliability_issues_page(report, elements, mode):
-    """Generate Reliability issues section"""
     reliability_issues = get_issues_by_impact_category(report.issues, "RELIABILITY", mode)
     create_issue_section("Reliability Issues", reliability_issues, elements, mode)
 
-
+# Generate Maintainability issues section
 def generate_maintainability_issues_page(report, elements, mode):
-    """Generate Maintainability issues section"""
     maintainability_issues = get_issues_by_impact_category(report.issues, "MAINTAINABILITY", mode)
     create_issue_section("Maintainability Issues", maintainability_issues, elements, mode)

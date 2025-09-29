@@ -1,7 +1,8 @@
 # Module to fetch data from SonarQube API
 from typing import Dict, List
-import requests
 from data.models import SonarQubeProject, SonarQubeIssue, SonarQubeMeasure, SonarQubeHotspot, ReportData
+import requests
+import traceback
 
 # Helper function to make authenticated GET requests
 def get_json(url: str, token: str) -> Dict:
@@ -10,8 +11,7 @@ def get_json(url: str, token: str) -> Dict:
     return response.json()
 
 # Function to fetch code snippet for a specific issue or hotspot
-def get_code_snippet(base_url: str, token: str, component: str, line: int, context_lines: int = 3, verbose: bool = False) -> str:
-    """Fetch code snippet for a specific component and line"""
+def get_code_snippet(base_url: str, token: str, component: str, line: int, context_lines: int = 3) -> str:
     try:
         # Calculate line range (line ± context_lines)
         from_line = max(1, line - context_lines)
@@ -45,13 +45,11 @@ def get_code_snippet(base_url: str, token: str, component: str, line: int, conte
         return result
     except Exception as e:
         print(f"ERROR: Error fetching code snippet for {component}:{line}: {e}")  # Debug log
-        import traceback
         traceback.print_exc()
         return ""
 
 # Function to fetch all hotspots with pagination
-def fetch_all_hotspots(base_url: str, token: str, project_key: str, verbose: bool = False) -> Dict:
-    """Fetch all hotspots from SonarQube with pagination support"""
+def fetch_all_hotspots(base_url: str, token: str, project_key: str) -> Dict:
     all_hotspots = []
     page = 1
     page_size = 500  # Maximum page size
@@ -131,7 +129,7 @@ def get_report_data(base_url: str, token: str, project_key: str, verbose: bool =
     
     if verbose:
         print("Fetching security hotspots (with pagination)...")
-    hotspots_data = fetch_all_hotspots(base_url, token, project_key, verbose)
+    hotspots_data = fetch_all_hotspots(base_url, token, project_key)
 
     project = SonarQubeProject.from_dict(component_data)
 
@@ -152,7 +150,7 @@ def get_report_data(base_url: str, token: str, project_key: str, verbose: bool =
         if issue.line:
             if verbose and total_issues <= 20:  # Show detail for small datasets
                 print(f"      Fetching code snippet for {issue.key} at line {issue.line}")
-            code_snippet = get_code_snippet(base_url, token, issue.component, issue.line, 3, verbose)
+            code_snippet = get_code_snippet(base_url, token, issue.component, issue.line, 3)
 
             if not code_snippet.strip():
                 code_snippet = "No code snippet available for this issue."
@@ -185,7 +183,7 @@ def get_report_data(base_url: str, token: str, project_key: str, verbose: bool =
         if hotspot.line:
             if verbose and total_hotspots <= 10:  # Show detail for small datasets
                 print(f"      Fetching code snippet for hotspot {hotspot.key} at line {hotspot.line}")
-            code_snippet = get_code_snippet(base_url, token, hotspot.component, hotspot.line, 3, verbose)
+            code_snippet = get_code_snippet(base_url, token, hotspot.component, hotspot.line, 3)
             
             # If no code snippet was fetched, create a security-focused fallback
             if not code_snippet.strip():

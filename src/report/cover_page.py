@@ -1,4 +1,4 @@
-# Cover page generation module for PDF reports
+# Cover page generation module for the reports
 from reportlab.platypus import Paragraph, Spacer, Table, TableStyle
 from reportlab.lib.units import cm
 from reportlab.lib import colors
@@ -6,7 +6,7 @@ from reportlab.lib import colors
 from datetime import datetime
 from .utils import (
     style_title, style_subtitle, style_meta, badge, score_to_grade, 
-    get_measure_value
+    get_measure_value, style_footer
 )
 
 # Create an issue count block with grade badge
@@ -130,5 +130,4 @@ def generate_cover_page(report, elements):
         "<i>The report is generated based on SonarQube instance that its information is provided. All data is fetched from SonarQube API. </i>"
         "<i>ReflectSonar just provides a way to generate the report. </i>"
     )
-    from .utils import style_footer
     elements.append(Paragraph(note, style_footer))

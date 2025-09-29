@@ -1,12 +1,9 @@
-# Main PDF generation module - orchestrates all report components
+# Main PDF generation module that orchestrates all report components
 
 from reportlab.platypus import SimpleDocTemplate, PageBreak
 from reportlab.lib.pagesizes import A4
 from reportlab.lib.units import cm
 from data.models import ReportData
-import os
-import time
-
 from .utils import draw_logo, BookmarkFlowable
 from .cover_page import generate_cover_page
 from .issues import (
@@ -15,6 +12,8 @@ from .issues import (
     generate_maintainability_issues_page
 )
 from .hotspots import generate_security_hotspots_page
+import os
+import time
 
 # Function to add header and footer on each page
 def add_header_footer(canvas, doc):
@@ -22,10 +21,6 @@ def add_header_footer(canvas, doc):
     
     # Add logo to all pages (including cover page)
     logo_path = os.path.join(os.path.dirname(__file__), "reflect-sonar.png")
-    
-    # Calculate position for top-left corner with margins
-    x = 1.5 * cm  # Left margin
-    y = A4[1] - 2 * cm  # Top margin
     
     # Make logos bigger - different sizes for cover vs other pages
     if doc.page == 1:  # Cover page
