@@ -26,21 +26,6 @@ class BookmarkFlowable(Flowable):
         # Then add to PDF outline with proper level and title
         canvas.addOutlineEntry(self.title, key, level=self.level)
 
-# Invisible flowable to create anchor points for bookmarks without affecting layout
-class InvisibleAnchor(Flowable):
-    def __init__(self, anchor_id):
-        self.anchor_id = anchor_id
-        self.width = 0
-        self.height = 0
-    
-    def draw(self):
-        # Create an invisible anchor point
-        canvas = self.canv
-        # Create unique bookmark key for this anchor
-        key = f"anchor_{self.anchor_id}"
-        # Bookmark the current position without adding to outline
-        canvas.bookmarkPage(key)
-
 # Custom flowable for severity-level bookmarks that link to specific anchors
 class SeverityBookmarkFlowable(Flowable):
     def __init__(self, title, anchor_id, level=1):
