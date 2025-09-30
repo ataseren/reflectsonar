@@ -9,7 +9,7 @@ from reportlab.lib import colors
 from .utils import (
     style_section_title, style_issue_meta, style_normal, 
     get_severity_order, get_severity_list,
-    severity_badge, BookmarkFlowable
+    severity_badge, SeverityBookmarkFlowable, ParagraphWithAnchor
 )
 import re
 import html
@@ -43,7 +43,7 @@ def get_issues_by_impact_category(issues, category: str, mode: str = "STANDARD")
     return filtered_issues
 
 # Create a table displaying issues with severity, rule, and message
-def create_issue_table(issues, mode: str = "STANDARD"):
+def create_issue_table(issues, mode: str = "STANDARD", section_name: str = ""):
     if not issues:
         # Create a list with spacer and paragraph for better formatting
         content = [
@@ -71,6 +71,7 @@ def create_issue_table(issues, mode: str = "STANDARD"):
     sorted_issues = sorted(issues, key=get_issue_severity_for_sorting)
     
     table_data = []
+    severity_first_occurrence = {}  # Track first occurrence of each severity
     
     # Add header
     header_style = ParagraphStyle("Header", parent=style_normal, fontName="Helvetica-Bold", fontSize=10)
@@ -81,6 +82,23 @@ def create_issue_table(issues, mode: str = "STANDARD"):
     ])
     
     for issue in sorted_issues:
+        # Get the appropriate severity for this issue
+        display_severity = issue.severity
+        if mode == "MQR" and issue.impacts:
+            # For MQR mode, use impact severity for display
+            for impact in issue.impacts:
+                impact_severity = impact.get('severity', '')
+                if impact_severity:
+                    display_severity = impact_severity
+                    break
+        
+        # Check if this is the first occurrence of this severity level
+        anchor_id = None
+        if display_severity not in severity_first_occurrence:
+            severity_first_occurrence[display_severity] = True
+            # Create anchor ID for this severity in this section
+            anchor_id = f"{section_name}_{display_severity}".replace(" ", "_")
+        
         # Use full component path instead of just filename
         full_path = issue.component
         # Remove project key prefix if present
@@ -126,16 +144,6 @@ def create_issue_table(issues, mode: str = "STANDARD"):
         
         rule_and_message = f"<b>{issue.rule}</b><br/>{cleaned_message}"
         
-        # Get the appropriate severity for badge
-        display_severity = issue.severity
-        if mode == "MQR" and issue.impacts:
-            # For MQR mode, use impact severity for display
-            for impact in issue.impacts:
-                impact_severity = impact.get('severity', '')
-                if impact_severity:
-                    display_severity = impact_severity
-                    break
-        
         # Create a custom style for file paths
         file_path_style = ParagraphStyle(
             "FilePathStyle",
@@ -144,10 +152,16 @@ def create_issue_table(issues, mode: str = "STANDARD"):
             wordWrap='LTR'  # Better word wrapping for long paths
         )
         
+        # Create filename paragraph, with anchor if this is first occurrence of severity
+        if anchor_id:
+            filename_paragraph = ParagraphWithAnchor(filename, file_path_style, anchor_id)
+        else:
+            filename_paragraph = Paragraph(filename, file_path_style)
+        
         # Add main issue row
         table_data.append([
             severity_badge(display_severity, mode),
-            Paragraph(filename, file_path_style),
+            filename_paragraph,
             Paragraph(rule_and_message, style_normal)
         ])
         
@@ -283,8 +297,10 @@ def create_issue_section(title: str, issues, elements, mode: str = "STANDARD"):
             count = severity_counts.get(severity, 0)
             if count > 0:
                 summary_parts.append(f"{severity.title()}: {count}")
-                # Add sub-bookmark for this severity level
-                elements.append(BookmarkFlowable(f"{severity.title()} ({count})", 1))
+                # Create anchor ID for this severity in this section
+                anchor_id = f"{title}_{severity}".replace(" ", "_")
+                # Add severity-specific bookmark that will link to the anchor
+                elements.append(SeverityBookmarkFlowable(f"{severity.title()} ({count})", anchor_id, 1))
         
         if summary_parts:
             summary_text = f"<b>Total: {len(issues)} issues</b> ({', '.join(summary_parts)})"
@@ -293,7 +309,7 @@ def create_issue_section(title: str, issues, elements, mode: str = "STANDARD"):
         elements.append(Paragraph("<b>Total: 0 issues</b>", style_issue_meta))
     
     elements.append(Spacer(1, 0.5*cm))
-    elements.append(create_issue_table(issues, mode))
+    elements.append(create_issue_table(issues, mode, title))
     elements.append(Spacer(1, 1*cm))
 
 # Generate Security issues section

@@ -1,5 +1,5 @@
 # Utility functions and classes for the report generation
-from reportlab.platypus import Flowable
+from reportlab.platypus import Flowable, Paragraph
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.lib import colors
 from reportlab.lib.colors import HexColor
@@ -25,6 +25,56 @@ class BookmarkFlowable(Flowable):
         
         # Then add to PDF outline with proper level and title
         canvas.addOutlineEntry(self.title, key, level=self.level)
+
+# Invisible flowable to create anchor points for bookmarks without affecting layout
+class InvisibleAnchor(Flowable):
+    def __init__(self, anchor_id):
+        self.anchor_id = anchor_id
+        self.width = 0
+        self.height = 0
+    
+    def draw(self):
+        # Create an invisible anchor point
+        canvas = self.canv
+        # Create unique bookmark key for this anchor
+        key = f"anchor_{self.anchor_id}"
+        # Bookmark the current position without adding to outline
+        canvas.bookmarkPage(key)
+
+# Custom flowable for severity-level bookmarks that link to specific anchors
+class SeverityBookmarkFlowable(Flowable):
+    def __init__(self, title, anchor_id, level=1):
+        self.title = title
+        self.anchor_id = anchor_id
+        self.level = level
+        self.width = 0
+        self.height = 0
+    
+    def draw(self):
+        # Add bookmark that links to a specific anchor
+        canvas = self.canv
+        # Create unique bookmark key for this title
+        key = f"severity_bookmark_{id(self)}_{self.title.replace(' ', '_')}"
+        # Create anchor key that matches the InvisibleAnchor
+        anchor_key = f"anchor_{self.anchor_id}"
+        
+        # Add to PDF outline with reference to the anchor
+        canvas.addOutlineEntry(self.title, anchor_key, level=self.level)
+
+# Specialized Paragraph that can create an anchor point when drawn
+class ParagraphWithAnchor(Paragraph):
+    def __init__(self, text, style, anchor_id=None):
+        super().__init__(text, style)
+        self.anchor_id = anchor_id
+    
+    def draw(self):
+        # Create anchor at this location if specified
+        if self.anchor_id:
+            canvas = self.canv
+            key = f"anchor_{self.anchor_id}"
+            canvas.bookmarkPage(key)
+        # Then draw the normal paragraph content
+        super().draw()
 
 # Initialize styles
 styles = getSampleStyleSheet()
