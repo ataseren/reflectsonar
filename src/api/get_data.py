@@ -1,6 +1,6 @@
 # Module to fetch data from SonarQube API
 from typing import Dict, List
-from data.models import SonarQubeProject, SonarQubeIssue, SonarQubeMeasure, SonarQubeHotspot, ReportData
+from data.models import SonarQubeProject, SonarQubeIssue, SonarQubeMeasure, SonarQubeHotspot, ReportData, SonarQubeRule
 import requests
 import traceback
 
@@ -9,6 +9,35 @@ def get_json(url: str, token: str) -> Dict:
     response = requests.get(url, auth=(token, ""))
     response.raise_for_status()
     return response.json()
+
+# Function to fetch rule descriptions for given rule keys
+def get_rules(base_url: str, token: str, rule_keys: List[str], verbose: bool = False) -> Dict[str, 'SonarQubeRule']:
+    if not rule_keys:
+        return {}
+    
+    try:
+        # SonarQube API: /api/rules/show?key=rule_key
+        rules = {}
+        
+        for rule_key in rule_keys:
+            if verbose:
+                print(f"   📋 Fetching rule description: {rule_key}")
+                
+            rule_url = f"{base_url}/api/rules/show?key={rule_key}"
+            response = get_json(rule_url, token)
+            
+            if 'rule' in response:
+                rule = SonarQubeRule.from_dict(response['rule'])
+                rules[rule_key] = rule
+                
+        if verbose:
+            print(f"   ✅ Fetched {len(rules)} rule descriptions")
+            
+        return rules
+        
+    except Exception as e:
+        print(f"ERROR: Error fetching rules: {e}")
+        return {}
 
 # Function to fetch code snippet for a specific issue or hotspot
 def get_code_snippet(base_url: str, token: str, component: str, line: int, context_lines: int = 3) -> str:
@@ -196,6 +225,21 @@ def get_report_data(base_url: str, token: str, project_key: str, verbose: bool =
 
         hotspots.append(hotspot)
 
+    # Collect unique rule keys from issues and hotspots
+    rule_keys = set()
+    for issue in issues:
+        if issue.rule:
+            rule_keys.add(issue.rule)
+    for hotspot in hotspots:
+        if hotspot.rule:
+            rule_keys.add(hotspot.rule)
+    
+    if verbose:
+        print(f"📋 Fetching descriptions for {len(rule_keys)} unique rules...")
+    
+    # Fetch rule descriptions
+    rules = get_rules(base_url, token, list(rule_keys), verbose)
+
     settings: bool = settings_data.get("sonar.multi-quality-mode.enabled", {}).get("value", "true").lower() == "true"
 
     if verbose:
@@ -207,6 +251,7 @@ def get_report_data(base_url: str, token: str, project_key: str, verbose: bool =
         print(f"   • MQR mode enabled: {settings}")
         print(f"   • Issues with code snippets: {sum(1 for i in issues if i.code_snippet and i.code_snippet.strip())}")
         print(f"   • Hotspots with code snippets: {sum(1 for h in hotspots if h.code_snippet and h.code_snippet.strip())}")
+        print(f"   • Rules descriptions fetched: {len(rules)}")
 
     return ReportData(
         project=project,
@@ -215,5 +260,6 @@ def get_report_data(base_url: str, token: str, project_key: str, verbose: bool =
         hotspots=hotspots,
         quality_gate={},
         quality_profiles=[],
-        mode_setting=settings
+        mode_setting=settings,
+        rules=rules
     )

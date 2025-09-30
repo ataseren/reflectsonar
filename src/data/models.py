@@ -46,6 +46,21 @@ class SonarQubeIssue:
             impacts=data.get('impacts', [])
         )
 
+# Represents a SonarQube rule
+@dataclass
+class SonarQubeRule:
+    key: str
+    name: str
+    description_sections: List[Dict[str, Any]] = field(default_factory=list)
+    
+    @classmethod
+    def from_dict(cls, data: Dict[str, Any]) -> 'SonarQubeRule':
+        return cls(
+            key=data.get('key', ''),
+            name=data.get('name', ''),
+            description_sections=data.get('descriptionSections', [])
+        )
+
 # Represents a SonarQube measure
 @dataclass
 class SonarQubeMeasure:
@@ -133,3 +148,4 @@ class ReportData:
     quality_gate: Dict[str, Any]
     quality_profiles: List[Dict[str, Any]]
     mode_setting: bool
+    rules: Dict[str, SonarQubeRule] = field(default_factory=dict)

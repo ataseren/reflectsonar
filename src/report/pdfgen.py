@@ -12,6 +12,7 @@ from .issues import (
     generate_maintainability_issues_page
 )
 from .hotspots import generate_security_hotspots_page
+from .rules import generate_rules_page
 import os
 import time
 
@@ -104,6 +105,14 @@ def generate_pdf(report: ReportData, output_path: str = None, project_key: str =
     if verbose:
         print("Generating Security Hotspots section...")
     generate_security_hotspots_page(report, elements)
+    
+    # Add rules reference section if we have rules
+    if report.rules:
+        elements.append(PageBreak())
+        elements.append(BookmarkFlowable("Rules Reference", 0))
+        if verbose:
+            print("Generating Rules Reference section...")
+        generate_rules_page(report, elements, verbose)
     
     # Build the PDF
     if verbose:
