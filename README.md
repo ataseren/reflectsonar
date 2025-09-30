@@ -13,11 +13,11 @@ SonarQube Community and Developer Editions do not have report generationn featur
 This tool is not affiliated with Sonar. The report is generated based on SonarQube instance that its information is provided. All data is fetched from
 SonarQube API. ReflectSonar just provides a way to generate the report.
 
-
-
-##= Quick Start
+## Quick Start
 
 ### Installation
+
+*More options will be added soon.*
 
 ```bash
 # Clone the repository
@@ -56,10 +56,9 @@ python src/main.py -p "my-app" -t "squ_abc123..." --verbose
 
 ### SonarQube Token Setup
 
-1. **Generate Token**: Go to SonarQube → My Account → Security → Generate Tokens
-2. **Token Format**: `squ_1a2b3c4d5e6f7g8h9i0j...` (User Token)
-3. **Permissions**: Ensure token has "Browse" permission on your project
-
+- **Generate Token**: Go to SonarQube → My Account → Security → Generate Tokens (It must be a User Token)
+- **Token Format**: `squ_1a2b3c4d5e6f7g8h9i0j...` 
+- **Permissions**: Ensure token has enough permission on your project
 
 ## Report Structure
 
@@ -88,12 +87,15 @@ python src/main.py -p "my-app" -t "squ_abc123..." --verbose
 - Risk categories and remediation guidance
 - Code context and security implications
 
-
 ## Contributing
 
 We welcome contributions! Please see our [Contributing Guidelines](CONTRIBUTING.md) for details.
 
-[Open an issue](https://github.com/ataseren/reflectsonar/issues) to discuss your ideas!
+[Open an issue](https://github.com/ataseren/reflectsonar/issues) to discuss your ideas! Submit a PR in any way you want.
+
+I am trying to make life easier for peoples' that need the functionality of this tool. Therefore, I don't want to bother you with strict contribution rules. Just open an issue or PR and I will be happy to review it. 
+
+Also, feel free to reach out to me via email or LinkedIn.
 
 ## License
 

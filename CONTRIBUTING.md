@@ -7,10 +7,8 @@ Welcome to ReflectSonar! We appreciate your interest in contributing to this PDF
 - [Project Overview](#project-overview)
 - [Code Hierarchy](#code-hierarchy)
 - [Development Setup](#development-setup)
-- [Contribution Workflow](#contribution-workflow)
 - [Code Guidelines](#code-guidelines)
 - [Testing](#testing)
-- [Documentation](#documentation)
 
 ## Project Overview
 
@@ -227,7 +225,6 @@ class CircleBadge(Flowable):
 2. Quality gate status
 3. Key metrics (bugs, vulnerabilities, code smells)
 4. Lines of code and technical debt
-5. Mode indicator (Standard/MQR)
 
 ---
 
@@ -270,6 +267,9 @@ Orchestrates complete issue sections
 - Access to a SonarQube instance
 
 ### Installation
+
+I will add the installation methods and the requirements for them as soon as I create a release.
+
 ```bash
 # Clone the repository
 git clone https://github.com/ataseren/reflectsonar.git
@@ -283,56 +283,11 @@ source venv/bin/activate  # On Windows: venv\Scripts\activate
 pip install -r requirements.txt
 ```
 
-### Configuration
-1. Copy `config.yaml.example` to `config.yaml`
-2. Update configuration with your SonarQube details:
-```yaml
-project: "your-project-key"
-token: "your-sonarqube-token"
-url: "http://your-sonarqube-instance:9000"
-output: "report.pdf"
-verbose: true
-```
-
-## Contribution Workflow
-
-### 1. Fork and Branch
-```bash
-# Fork the repository on GitHub
-# Clone your fork
-git clone https://github.com/your-username/reflectsonar.git
-cd reflectsonar
-
-# Create feature branch
-git checkout -b feature/your-feature-name
-```
-
-### 2. Development
-- Follow the existing code structure and naming conventions
-- Add appropriate documentation for new functions/classes
-- Include type hints for function parameters and return values
-- Update this CONTRIBUTION.md if you add new modules or significantly change architecture
-
-### 3. Testing
-```bash
-# Activate virtual environment
-source venv/bin/activate
-
-# Test with real SonarQube data
-python src/main.py -p your-project -t your-token -o test-report.pdf --verbose
-
-# Verify PDF generation and bookmark functionality
-```
-
-### 4. Submit Pull Request
-- Ensure code follows existing style conventions
-- Include description of changes and rationale
-- Reference any related issues
-- Ensure all tests pass
-
 ## Code Guidelines
 
-### Style Conventions
+I am not following the conventions strictly, or even at all, but here are some suggestions:
+
+### Style Conventions (Suggestions)
 - **PEP 8 Compliance**: Follow Python style guidelines
 - **Type Hints**: Use type annotations for function signatures
 - **Docstrings**: Document all public functions and classes
@@ -350,6 +305,7 @@ python src/main.py -p your-project -t your-token -o test-report.pdf --verbose
 - Implement caching where appropriate
 - Optimize PDF generation for large reports
 - Monitor memory usage with large code snippet collections
+
 
 ## Testing
 
@@ -370,26 +326,4 @@ python src/main.py -p your-project -t your-token -o test-report.pdf --verbose
 - Verify with different SonarQube versions
 - Test both authenticated and unauthenticated scenarios
 
-## Documentation
-
-### Code Documentation
-- All public functions must have docstrings
-- Include parameter descriptions and return value types  
-- Document complex algorithms or business logic
-- Update this CONTRIBUTION.md for architectural changes
-
-### User Documentation
-- Update README.md for user-facing changes
-- Include examples for new configuration options
-- Document any new command-line arguments
-- Provide troubleshooting guidance for common issues
-
-## Questions and Support
-
-For questions about contributing or the codebase:
-1. Check existing GitHub issues
-2. Create a new issue with the "question" label
-3. Provide context and relevant code snippets
-4. Follow up on discussions promptly
-
-Thank you for contributing to ReflectSonar! Your contributions help improve PDF reporting for the SonarQube community.
+Thank you for contributing to ReflectSonar! Please do not hesitate to reach out if you have any questions or need assistance.
