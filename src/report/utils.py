@@ -71,6 +71,10 @@ style_footer = ParagraphStyle("Footer", parent=style_normal, alignment=0, fontSi
 style_section_title = ParagraphStyle("SectionTitle", parent=styles["Heading1"], fontSize=16, spaceAfter=12, spaceBefore=12)
 style_issue_title = ParagraphStyle("IssueTitle", parent=styles["Heading2"], fontSize=12, spaceAfter=6)
 style_issue_meta = ParagraphStyle("IssueMeta", parent=style_normal, fontSize=9, textColor=colors.gray)
+style_rule_title = ParagraphStyle("RuleTitle", parent=styles["Heading2"], fontSize=12, spaceAfter=6)
+style_rule_subtitle = ParagraphStyle("RuleSubtitle", parent=styles["Heading3"], alignment=2, fontSize=10, spaceAfter=12)
+style_section_key = ParagraphStyle("SectionKey", parent=styles["Heading3"], fontSize=11, fontName="Helvetica-Bold", spaceAfter=4, spaceBefore=6, italic=False)
+
 
 # Custom flowable for creating circular badges
 class CircleBadge(Flowable):
