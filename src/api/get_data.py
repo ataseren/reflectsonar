@@ -231,9 +231,9 @@ def get_report_data(base_url: str, token: str, project_key: str, verbose: bool =
         if issue.rule:
             rule_keys.add(issue.rule)
     for hotspot in hotspots:
-        if hotspot.rule:
-            rule_keys.add(hotspot.rule)
-    
+        if hotspot.ruleKey:
+            rule_keys.add(hotspot.ruleKey)
+
     if verbose:
         print(f"📋 Fetching descriptions for {len(rule_keys)} unique rules...")
     
