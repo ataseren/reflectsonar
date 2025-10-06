@@ -1,4 +1,6 @@
+from tabnanny import verbose
 from report.pdfgen import generate_pdf
+from report.utils import log, handle_exception
 from api.get_data import get_report_data
 import argparse
 import sys
@@ -71,25 +73,18 @@ def main():
             with open(args.config, 'r') as file:
                 config = yaml.safe_load(file)
 
-        if args.verbose:
-            print("🚀 Starting ReflectSonar PDF Report Generation")
-            print(f"📊 Project: {args.project}")
-            print(f"🌐 SonarQube URL: {args.url}")
-            print(f"📄 Output: {args.output or f'reflect_sonar_report_{args.project}_[timestamp].pdf'}")
+        log(args.verbose, "🚀 Starting ReflectSonar PDF Report Generation")
+        log(args.verbose, f"📊 Project: {args.project}")
+        log(args.verbose, f"🌐 SonarQube URL: {args.url}")
+        log(args.verbose, f"📄 Output: {args.output or f'reflect_sonar_report_{args.project}_[timestamp].pdf'}")
 
         # Fetch data from SonarQube
-        if args.verbose:
-            print("\n📡 Connecting to SonarQube and fetching data...")
-        else:
-            print("📡 Fetching data from SonarQube... (Press Ctrl+C to cancel)")
+        log(args.verbose, "📡 Connecting to SonarQube and fetching data...")
+        print("📡 Fetching data from SonarQube... (Press Ctrl+C to cancel)")
         
         report_data = get_report_data(args.url, args.token, args.project, verbose=args.verbose)
 
-        # Generate PDF report
-        if args.verbose:
-            print("\n📄 Generating PDF report...")
-        else:
-            print("📄 Generating PDF report... (Press Ctrl+C to cancel)")
+        print("📄 Generating PDF report... (Press Ctrl+C to cancel)")
             
         output_file = generate_pdf(report_data, args.output, args.project, verbose=args.verbose)
 
@@ -99,46 +94,9 @@ def main():
         
         return 0
 
-    except KeyboardInterrupt:
-        # Handle Ctrl+C gracefully
-        print("\n")
-        print("🛑 Report generation interrupted by user")
-        print("✨ Thanks for using ReflectSonar!")
-        return 1
-    except ConnectionError as e:
-        print("\n🌐 Connection Error: Unable to connect to SonarQube server")
-        print(f"❌ {str(e)}")
-        print("\n💡 Check your SonarQube URL and network connection")
-        return 1
-    except PermissionError as e:
-        print("\n🔒 Permission Error: Cannot write to output location")
-        print(f"❌ {str(e)}")
-        print("\n💡 Check file permissions or choose a different output path")
-        return 1
-    except FileNotFoundError as e:
-        print("\n📁 File Not Found: Missing required file")
-        print(f"❌ {str(e)}")
-        print("\n💡 Ensure all required files (like logo) are in place")
-        return 1
-    except Exception as e:
-        # Handle other errors gracefully
-        error_msg = str(e)
-        if "401" in error_msg or "Unauthorized" in error_msg:
-            print("\n🔐 Authentication Error: Invalid SonarQube token")
-            print("💡 Check your token and permissions")
-        elif "404" in error_msg or "Not Found" in error_msg:
-            print("\n🔍 Project Not Found: Cannot find the specified project")
-            print("💡 Verify your project key is correct")
-        else:
-            print(f"\n❌ Error generating report: {error_msg}")
-            
-        if args.verbose if 'args' in locals() else False:
-            print("\n🔍 Detailed error information:")
-            traceback.print_exc()
-        else:
-            print("\n💡 Run with --verbose for detailed error information")
-        return 1
-
+    except Exception as e:  # single catch; delegate details to handler
+        return handle_exception(e, args.verbose)
+    
 
 if __name__ == "__main__":
     sys.exit(main())

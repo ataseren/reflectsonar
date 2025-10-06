@@ -107,7 +107,7 @@ def generate_cover_page(report, elements):
     ]
 
     # Create dashboard table
-    flattened_dashboard = [[cell for cell in row] for row in dashboard_data]
+    flattened_dashboard = [list(row) for row in dashboard_data]
     t = Table(flattened_dashboard, colWidths=[6*cm]*3)
     t.setStyle(TableStyle([
         ("BACKGROUND", (0, 0), (-1, -1), colors.whitesmoke),

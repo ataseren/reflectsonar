@@ -5,6 +5,7 @@ from reportlab.lib import colors
 from reportlab.lib.colors import HexColor
 from reportlab.graphics.shapes import Drawing, Circle, String
 import os
+import traceback
 
 # Custom flowable to add bookmarks to PDF
 class BookmarkFlowable(Flowable):
@@ -103,6 +104,10 @@ def badge(letter):
     }
     return CircleBadge(letter, radius=12, color=color_map.get(letter, HexColor("#9E9E9E")))
 
+def log(verbose: bool, message: str):
+    if verbose:
+        print(message)
+
 # Convert numeric score to letter grade
 def score_to_grade(score: float) -> str:
     if score <= 1.0:
@@ -188,3 +193,62 @@ def draw_logo(canvas, logo_path, x, y, width, height):
 # Create a colored badge for issue severity
 def severity_badge(severity: str, mode: str = "MQR"):
     return CircleBadge(severity[0].upper(), radius=8, color=get_severity_color(severity, mode))
+
+def handle_exception(e: Exception, verbose: bool) -> int:
+    # Map simple exception types to their fixed messages
+    table = {
+        KeyboardInterrupt: (
+            ["\n", "🛑 Report generation interrupted by user", "✨ Thanks for using ReflectSonar!"],
+            1,
+        ),
+        ConnectionError: (
+            [
+                "\n🌐 Connection Error: Unable to connect to SonarQube server",
+                f"❌ {str(e)}",
+                "\n💡 Check your SonarQube URL and network connection",
+            ],
+            1,
+        ),
+        PermissionError: (
+            [
+                "\n🔒 Permission Error: Cannot write to output location",
+                f"❌ {str(e)}",
+                "\n💡 Check file permissions or choose a different output path",
+            ],
+            1,
+        ),
+        FileNotFoundError: (
+            [
+                "\n📁 File Not Found: Missing required file",
+                f"❌ {str(e)}",
+                "\n💡 Ensure all required files (like logo) are in place",
+            ],
+            1,
+        ),
+    }
+
+    payload = table.get(type(e))
+    if payload:
+        lines, code = payload
+        for line in lines:
+            print(line)
+        return code
+
+    # Generic classification by message content
+    msg = str(e)
+    lower = msg.lower()
+    if "401" in lower or "unauthorized" in lower:
+        print("\n🔐 Authentication Error: Invalid SonarQube token")
+        print("💡 Check your token and permissions")
+    elif "404" in lower or "not found" in lower:
+        print("\n🔍 Project Not Found: Cannot find the specified project")
+        print("💡 Verify your project key is correct")
+    else:
+        print(f"\n❌ Error generating report: {msg}")
+
+    if verbose:
+        print("\n🔍 Detailed error information:")
+        traceback.print_exc()
+    else:
+        print("\n💡 Run with --verbose for detailed error information")
+    return 1

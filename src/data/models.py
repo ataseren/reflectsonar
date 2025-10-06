@@ -115,7 +115,7 @@ class SonarQubeHotspot:
     vulnerability_probability: str = "MEDIUM"
     code_snippet: Optional[str] = None
     security_category: Optional[str] = None
-    ruleKey: Optional[str] = None
+    rule_key: Optional[str] = None
     
     # Create a hotspot object from a dictionary
     @classmethod
@@ -135,7 +135,7 @@ class SonarQubeHotspot:
                 if data.get('updateDate') else None,
             vulnerability_probability=data.get('vulnerabilityProbability', 'MEDIUM'),
             security_category=data.get('securityCategory'),
-            ruleKey=data.get('ruleKey')
+            rule_key=data.get('ruleKey')
         )
     
 # Represents the data that will be used in the report

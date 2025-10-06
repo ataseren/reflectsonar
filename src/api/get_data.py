@@ -3,18 +3,23 @@ from typing import Dict, List
 from data.models import SonarQubeProject, SonarQubeIssue, SonarQubeMeasure, SonarQubeHotspot, ReportData, SonarQubeRule
 import requests
 import traceback
+from report.utils import log
 
-# Helper function to make authenticated GET requests
+# Helpers
 def get_json(url: str, token: str) -> Dict:
     response = requests.get(url, auth=(token, ""))
     response.raise_for_status()
     return response.json()
 
+def fetch(name: str, url: str, token: str, verbose: bool) -> Dict:
+    log(verbose, f"Fetching {name}...")
+    return get_json(url, token)
+
 # Function to fetch rule descriptions for given rule keys
 def get_rules(base_url: str, token: str, rule_keys: List[str], verbose: bool = False) -> Dict[str, 'SonarQubeRule']:
     if not rule_keys:
         return {}
-    
+
     try:
         # SonarQube API: /api/rules/show?key=rule_key
         rules = {}
@@ -24,15 +29,13 @@ def get_rules(base_url: str, token: str, rule_keys: List[str], verbose: bool = F
                 print(f"   📋 Fetching rule description: {rule_key}")
                 
             rule_url = f"{base_url}/api/rules/show?key={rule_key}"
-            response = get_json(rule_url, token)
+            response = fetch("rule description...", rule_url, token, verbose)
             
             if 'rule' in response:
                 rule = SonarQubeRule.from_dict(response['rule'])
                 rules[rule_key] = rule
                 
-        if verbose:
-            print(f"   ✅ Fetched {len(rules)} rule descriptions")
-            
+        log(verbose, f"   ✅ Fetched {len(rules)} rule descriptions")
         return rules
         
     except Exception as e:
@@ -49,7 +52,7 @@ def get_code_snippet(base_url: str, token: str, component: str, line: int, conte
         sources_url = f"{base_url}/api/sources/show?key={component}&from={from_line}&to={to_line}"
         
         try:
-            response = get_json(sources_url, token)
+            response = fetch("code snippets...", sources_url, token, False)
         except Exception as api_error:
             print(f"ERROR: API call failed: {api_error}")
             return ""
@@ -87,7 +90,7 @@ def fetch_all_hotspots(base_url: str, token: str, project_key: str) -> Dict:
         hotspots_url = f"{base_url}/api/hotspots/search?projectKey={project_key}&ps={page_size}&p={page}"
         
         try:
-            page_data = get_json(hotspots_url, token)
+            page_data = fetch("hotspots...", hotspots_url, token, False)
             page_hotspots = page_data.get("hotspots", [])
             
             all_hotspots.extend(page_hotspots)
@@ -140,45 +143,34 @@ def get_report_data(base_url: str, token: str, project_key: str, verbose: bool =
     measures_url = f"{base_url}/api/measures/component?component={project_key}&metricKeys={metrics_param}"
     settings_url = f"{base_url}/api/settings/values?keys=sonar.multi-quality-mode.enabled"
 
-    if verbose:
-        print("Fetching project component data...")
-    component_data = get_json(component_url, token)
+    component_data = fetch("project component data...", component_url, token, verbose)
     
-    if verbose:
-        print("Fetching issues data...")
-    issues_data = get_json(issues_url, token)
-    
-    if verbose:
-        print("Fetching measures data...")
-    measures_data = get_json(measures_url, token)
-    
-    if verbose:
-        print("Fetching SonarQube settings...")
-    settings_data = get_json(settings_url, token)
-    
-    if verbose:
-        print("Fetching security hotspots (with pagination)...")
+    issues_data = fetch("issues data...", issues_url, token, verbose)
+
+    measures_data = fetch("measures data...", measures_url, token, verbose)
+
+    settings_data = fetch("SonarQube settings...", settings_url, token, verbose)
+
     hotspots_data = fetch_all_hotspots(base_url, token, project_key)
 
     project = SonarQubeProject.from_dict(component_data)
-
+    
     # Process issues and fetch code snippets
     issues: List[SonarQubeIssue] = []
     total_issues = len(issues_data.get("issues", []))
     
-    if verbose:
-        print(f"Processing {total_issues} issues and fetching code snippets...")
+    log(verbose, f"Processing {total_issues} issues and fetching code snippets...")
     
     for i, issue_data in enumerate(issues_data.get("issues", [])):
         issue = SonarQubeIssue.from_dict(issue_data)
         
-        if verbose and (i + 1) % 10 == 0:  # Progress every 10 issues
-            print(f"   Processed {i + 1}/{total_issues} issues...")
+        if (i + 1) % 10 == 0:  # Progress every 10 issues
+            log(verbose, f"   Processed {i + 1}/{total_issues} issues...")
         
         # Fetch code snippet if the issue has a line number
         if issue.line:
             if verbose and total_issues <= 20:  # Show detail for small datasets
-                print(f"      Fetching code snippet for {issue.key} at line {issue.line}")
+                log(verbose, f"      Fetching code snippet for {issue.key} at line {issue.line}")
             code_snippet = get_code_snippet(base_url, token, issue.component, issue.line, 3)
 
             if not code_snippet.strip():
@@ -198,20 +190,19 @@ def get_report_data(base_url: str, token: str, project_key: str, verbose: bool =
     # Process hotspots and fetch code snippets
     hotspots: List[SonarQubeHotspot] = []
     total_hotspots = len(hotspots_data.get("hotspots", []))
-    
-    if verbose:
-        print(f"Processing {total_hotspots} security hotspots and fetching code snippets...")
-    
+
+    log(verbose, f"Processing {total_hotspots} security hotspots and fetching code snippets...")
+
     for i, hotspot_data in enumerate(hotspots_data.get("hotspots", [])):
         hotspot = SonarQubeHotspot.from_dict(hotspot_data)
-        
-        if verbose and (i + 1) % 5 == 0:  # Progress every 5 hotspots
-            print(f"   Processed {i + 1}/{total_hotspots} hotspots...")
+
+        if (i + 1) % 5 == 0:  # Progress every 5 hotspots
+            log(verbose, f"   Processed {i + 1}/{total_hotspots} hotspots...")
         
         # Fetch code snippet if the hotspot has a line number
         if hotspot.line:
             if verbose and total_hotspots <= 10:  # Show detail for small datasets
-                print(f"      Fetching code snippet for hotspot {hotspot.key} at line {hotspot.line}")
+                log(f"      Fetching code snippet for hotspot {hotspot.key} at line {hotspot.line}")
             code_snippet = get_code_snippet(base_url, token, hotspot.component, hotspot.line, 3)
             
             # If no code snippet was fetched, create a security-focused fallback
@@ -220,8 +211,7 @@ def get_report_data(base_url: str, token: str, project_key: str, verbose: bool =
             
             hotspot.code_snippet = code_snippet
         else:
-            if verbose:
-                print(f"Hotspot {hotspot.key} has no line number, skipping code snippet")
+            log(verbose, f"Hotspot {hotspot.key} has no line number, skipping code snippet")
 
         hotspots.append(hotspot)
 
@@ -231,27 +221,25 @@ def get_report_data(base_url: str, token: str, project_key: str, verbose: bool =
         if issue.rule:
             rule_keys.add(issue.rule)
     for hotspot in hotspots:
-        if hotspot.ruleKey:
-            rule_keys.add(hotspot.ruleKey)
+        if hotspot.rule_key:
+            rule_keys.add(hotspot.rule_key)
 
-    if verbose:
-        print(f"📋 Fetching descriptions for {len(rule_keys)} unique rules...")
+    log(verbose, f"📋 Fetching descriptions for {len(rule_keys)} unique rules...")
     
     # Fetch rule descriptions
     rules = get_rules(base_url, token, list(rule_keys), verbose)
 
     settings: bool = settings_data.get("sonar.multi-quality-mode.enabled", {}).get("value", "true").lower() == "true"
 
-    if verbose:
-        print("Data collection summary:")
-        print(f"   • Project: {project.name}")
-        print(f"   • Issues collected: {len(issues)}")
-        print(f"   • Hotspots collected: {len(hotspots)}")
-        print(f"   • Measures collected: {len(measures)}")
-        print(f"   • MQR mode enabled: {settings}")
-        print(f"   • Issues with code snippets: {sum(1 for i in issues if i.code_snippet and i.code_snippet.strip())}")
-        print(f"   • Hotspots with code snippets: {sum(1 for h in hotspots if h.code_snippet and h.code_snippet.strip())}")
-        print(f"   • Rules descriptions fetched: {len(rules)}")
+    log(verbose, "Data collection summary:")
+    log(verbose, f"   • Project: {project.name}")
+    log(verbose, f"   • Issues collected: {len(issues)}")
+    log(verbose, f"   • Hotspots collected: {len(hotspots)}")
+    log(verbose, f"   • Measures collected: {len(measures)}")
+    log(verbose, f"   • MQR mode enabled: {settings}")
+    log(verbose, f"   • Issues with code snippets: {sum(1 for i in issues if i.code_snippet and i.code_snippet.strip())}")
+    log(verbose, f"   • Hotspots with code snippets: {sum(1 for h in hotspots if h.code_snippet and h.code_snippet.strip())}")
+    log(verbose, f"   • Rules descriptions fetched: {len(rules)}")
 
     return ReportData(
         project=project,
