@@ -39,8 +39,7 @@ class SeverityBookmarkFlowable(Flowable):
     def draw(self):
         # Add bookmark that links to a specific anchor
         canvas = self.canv
-        # Create unique bookmark key for this title
-        key = f"severity_bookmark_{id(self)}_{self.title.replace(' ', '_')}"
+
         # Create anchor key that matches the InvisibleAnchor
         anchor_key = f"anchor_{self.anchor_id}"
         

@@ -1,9 +1,10 @@
 """
-Basic rules page generation for PDF reports
+This module generates the rules page for PDF reports
+by using SonarQube data.
 """
 from reportlab.platypus import Paragraph, Spacer
 from reportlab.lib.units import cm
-from .utils import style_section_title, style_normal, style_issue_title, style_section_key, style_rule_title
+from .utils import style_section_title, style_normal, style_section_key, style_rule_title # pylint: disable=relative-beyond-top-level
 
 
 def generate_rules_page(report, elements, verbose=False):

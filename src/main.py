@@ -69,10 +69,6 @@ def main():
     try:
         args = parse_arguments()
 
-        if args.config is not None:
-            with open(args.config, 'r') as file:
-                config = yaml.safe_load(file)
-
         log(args.verbose, "🚀 Starting ReflectSonar PDF Report Generation")
         log(args.verbose, f"📊 Project: {args.project}")
         log(args.verbose, f"🌐 SonarQube URL: {args.url}")

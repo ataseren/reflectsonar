@@ -1,11 +1,13 @@
-# Data models for SonarQube entities
+""" 
+Defines data models for SonarQube entities such as issues, rules, hotspots, etc.
+"""
 from dataclasses import dataclass, field
 from typing import List, Dict, Any, Optional
 from datetime import datetime
 
-# Represents a SonarQube issue
 @dataclass
 class SonarQubeIssue:
+    """Data model for a SonarQube issue"""
     key: str
     component: str
     project: str
@@ -23,9 +25,9 @@ class SonarQubeIssue:
     impacts: List[Dict[str, Any]] = field(default_factory=list)
     code_snippet: Optional[str] = None
 
-    # Create an issue object from a dictionary
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> 'SonarQubeIssue':
+        """Creates a SonarQubeIssue instance from a dictionary"""
         return cls(
             key=data.get('key', ''),
             component=data.get('component', ''),
@@ -46,38 +48,39 @@ class SonarQubeIssue:
             impacts=data.get('impacts', [])
         )
 
-# Represents a SonarQube rule
 @dataclass
 class SonarQubeRule:
+    """Data model for a SonarQube rule"""
     key: str
     name: str
     description_sections: List[Dict[str, Any]] = field(default_factory=list)
-    
+
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> 'SonarQubeRule':
+        """Creates a SonarQubeRule instance from a dictionary"""
         return cls(
             key=data.get('key', ''),
             name=data.get('name', ''),
             description_sections=data.get('descriptionSections', [])
         )
 
-# Represents a SonarQube measure
 @dataclass
 class SonarQubeMeasure:
+    """Data model for a SonarQube measure"""
     metric: str
     value: Any
 
-    # Create a measure object from a dictionary
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> 'SonarQubeMeasure':
+        """Creates a SonarQubeMeasure instance from a dictionary"""
         return cls(
             metric=data.get('metric', ''),
             value=data.get('value') or data.get('period', {}).get('value')
         )
 
-# Represents a SonarQube project
 @dataclass
 class SonarQubeProject:
+    """Data model for a SonarQube project"""
     key: str
     name: str
     qualifier: str
@@ -85,9 +88,9 @@ class SonarQubeProject:
     last_analysis_date: Optional[datetime] = None
     revision: Optional[str] = None
 
-    # Create a project object from a dictionary
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> 'SonarQubeProject':
+        """Creates a SonarQubeProject instance from a dictionary"""
         component = data.get('component', {})
         return cls(
             key=component.get('key', ''),
@@ -98,10 +101,10 @@ class SonarQubeProject:
                 if component.get('analysisDate') else None,
             revision=component.get('revision')
         )
-    
-# Represents a SonarQube security hotspot
+
 @dataclass
 class SonarQubeHotspot:
+    """Data model for a SonarQube security hotspot"""
     key: str
     component: str
     project: str
@@ -116,10 +119,10 @@ class SonarQubeHotspot:
     code_snippet: Optional[str] = None
     security_category: Optional[str] = None
     rule_key: Optional[str] = None
-    
-    # Create a hotspot object from a dictionary
+
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> 'SonarQubeHotspot':
+        """Creates a SonarQubeHotspot instance from a dictionary"""
         return cls(
             key=data.get('key', ''),
             component=data.get('component', ''),
@@ -137,10 +140,10 @@ class SonarQubeHotspot:
             security_category=data.get('securityCategory'),
             rule_key=data.get('ruleKey')
         )
-    
-# Represents the data that will be used in the report
+
 @dataclass
 class ReportData:
+    """Data model for report data"""
     project: SonarQubeProject
     issues: List[SonarQubeIssue]
     measures: Dict[str, SonarQubeMeasure]

@@ -1,28 +1,33 @@
-# Main PDF generation module that orchestrates all report components
+"""
+This module is the main PDF generation module that orchestrates all report components
+and outputs the final PDF document.
+"""
+
+import os
+import time
 
 from reportlab.platypus import SimpleDocTemplate, PageBreak
 from reportlab.lib.pagesizes import A4
 from reportlab.lib.units import cm
-from data.models import ReportData
-from .utils import draw_logo, BookmarkFlowable
-from .cover_page import generate_cover_page
-from .issues import (
-    generate_security_issues_page,
-    generate_reliability_issues_page, 
-    generate_maintainability_issues_page
-)
-from .hotspots import generate_security_hotspots_page
-from .rules import generate_rules_page
-import os
-import time
+from data.models import ReportData #pylint: disable=import-error
 
-# Function to add header and footer on each page
+from .utils import draw_logo, BookmarkFlowable, log # pylint: disable=relative-beyond-top-level
+from .cover_page import generate_cover_page # pylint: disable=relative-beyond-top-level
+from .issues import ( generate_security_issues_page, # pylint: disable=relative-beyond-top-level
+    generate_reliability_issues_page, # pylint: disable=relative-beyond-top-level
+    generate_maintainability_issues_page # pylint: disable=relative-beyond-top-level
+)
+from .hotspots import generate_security_hotspots_page # pylint: disable=relative-beyond-top-level
+from .rules import generate_rules_page # pylint: disable=relative-beyond-top-level
+
+
 def add_header_footer(canvas, doc):
+    """Adds header and footer to each page of the PDF document"""
     canvas.saveState()
-    
+
     # Add logo to all pages (including cover page)
     logo_path = os.path.join(os.path.dirname(__file__), "reflect-sonar.png")
-    
+
     # Make logos bigger - different sizes for cover vs other pages
     if doc.page == 1:  # Cover page
         logo_width = 6 * cm  # Bigger on cover page
@@ -34,28 +39,32 @@ def add_header_footer(canvas, doc):
         logo_height = 4 * cm
         x = 1.5 * cm  # Left margin
         y = A4[1] - 4 * cm  # Top margin
-        
+
     draw_logo(canvas, logo_path, x, y, logo_width, logo_height)
-    
+
     canvas.restoreState()
 
 # Main function to generate the PDF report
-def generate_pdf(report: ReportData, output_path: str = None, project_key: str = None, verbose: bool = False):
+def generate_pdf(report: ReportData, output_path: str = None,
+                 project_key: str = None, verbose: bool = False):
+    """Main function that generates a PDF report from the provided ReportData object"""
+
     # Determine SonarQube mode
     mode = "MQR" if report.mode_setting else "STANDARD"
-    
-    if verbose:
-        print(f"Detected SonarQube mode: {mode}")
-        print("Report contains:")
-        print(f"   • {len(report.issues)} issues")
-        print(f"   • {len(report.hotspots)} security hotspots")
-        print(f"   • {len(report.measures)} measures")
-    
+
+    log(verbose, f"Detected SonarQube mode: {mode}")
+    log(verbose, "Report contains:")
+    log(verbose, f"   • {len(report.issues)} issues")
+    log(verbose, f"   • {len(report.hotspots)} security hotspots")
+    log(verbose, f"   • {len(report.measures)} measures")
+
     # Create the PDF document
-    final_path = output_path if output_path else f"reflect_sonar_report_{project_key}_{time.strftime('%Y%m%d')}.pdf"
-    if verbose:
-        print(f"Creating PDF document: {final_path}")
-    
+    if output_path:
+        final_path = output_path
+    else:
+        final_path = f"reflect_sonar_report_{project_key}_{time.strftime('%Y%m%d')}.pdf"
+    log(verbose,f"Creating PDF document: {final_path}")
+
     doc = SimpleDocTemplate(
         final_path,
         pagesize=A4,
@@ -64,62 +73,55 @@ def generate_pdf(report: ReportData, output_path: str = None, project_key: str =
         leftMargin=2*cm,
         rightMargin=2*cm
     )
-    
+
     # Container for all report elements
     elements = []
-    
+
     # Add main bookmark for cover page
     elements.append(BookmarkFlowable("Report Overview", 0))
-    
+
     # Generate cover page
-    if verbose:
-        print("Generating cover page...")
+    log(verbose, "Generating cover page...")
     generate_cover_page(report, elements)
-    
+
     # Add page break before issues sections
     elements.append(PageBreak())
-    
+
     # Add bookmark and generate security issues section
     elements.append(BookmarkFlowable("Security Issues", 0))
-    if verbose:
-        print("Generating Security Issues section...")
+    log(verbose, "Generating Security Issues section...")
     generate_security_issues_page(report, elements, mode)
     elements.append(PageBreak())
-    
+
     # Add bookmark and generate reliability issues section
     elements.append(BookmarkFlowable("Reliability Issues", 0))
-    if verbose:
-        print("Generating Reliability Issues section...")
+    log(verbose, "Generating Reliability Issues section...")
     generate_reliability_issues_page(report, elements, mode)
     elements.append(PageBreak())
-    
+
     # Add bookmark and generate maintainability issues section
     elements.append(BookmarkFlowable("Maintainability Issues", 0))
-    if verbose:
-        print("Generating Maintainability Issues section...")
+    log(verbose, "Generating Maintainability Issues section...")
     generate_maintainability_issues_page(report, elements, mode)
     elements.append(PageBreak())
-    
+
     # Add bookmark and generate security hotspots section
     elements.append(BookmarkFlowable("Security Hotspots", 0))
-    if verbose:
-        print("Generating Security Hotspots section...")
+    log(verbose, "Generating Security Hotspots section...")
     generate_security_hotspots_page(report, elements)
-    
+
     # Add rules reference section if we have rules
     if report.rules:
         elements.append(PageBreak())
         elements.append(BookmarkFlowable("Rules Reference", 0))
-        if verbose:
-            print("Generating Rules Reference section...")
+        log(verbose, "Generating Rules Reference section...")
         generate_rules_page(report, elements, verbose)
-    
+
     # Build the PDF
     if verbose:
         print("Building final PDF document...")
     doc.build(elements, onFirstPage=add_header_footer, onLaterPages=add_header_footer)
-    
-    if verbose:
-        print(f"PDF saved to: {final_path}")
-    
+
+    log(verbose, f"PDF saved to: {final_path}")
+
     return final_path
