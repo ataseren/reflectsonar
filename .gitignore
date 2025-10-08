@@ -1,3 +1,5 @@
 venv/
 **/__pycache__/
 pdfgen_original.py
+build
+dist
