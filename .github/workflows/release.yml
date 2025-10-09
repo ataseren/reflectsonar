@@ -1,130 +1,133 @@
 name: Build and Release
 
 on:
+  workflow_dispatch: {}          # manual builds (no GitHub Release)
   push:
     tags:
-      - 'v*'
-  workflow_dispatch:
+      - 'v*'                     # tag like v1.2.3 -> creates a GitHub Release
 
 jobs:
-  build-linux:
-    runs-on: ubuntu-latest
-    
+  build:
+    name: Build (${{ matrix.os }}-${{ matrix.arch }})
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # Linux x64 (pin older runner for better glibc compatibility, or use container)
+          - os: linux
+            arch: x64
+            runner: ubuntu-20.04
+            py: '3.12'
+          # Windows x64
+          - os: windows
+            arch: x64
+            runner: windows-latest
+            py: '3.12'
+          # macOS arm64 (Apple Silicon)
+          - os: macos
+            arch: arm64
+            runner: macos-14
+            py: '3.12'
+          # macOS x64 (Intel)
+          - os: macos
+            arch: x64
+            runner: macos-13
+            py: '3.12'
+
     steps:
-    - uses: actions/checkout@v4
-    
-    - name: Set up Python
-      uses: actions/setup-python@v4
-      with:
-        python-version: '3.12'
-        
-    - name: Install dependencies
-      run: |
-        python -m pip install --upgrade pip
-        pip install -r requirements.txt
-        pip install pyinstaller
-        
-    - name: Build binary
-      run: |
-        python scripts/build_binary.py
-        
-    - name: Create release archive
-      run: |
-        cd dist
-        tar -czf reflectsonar-linux-x64.tar.gz reflectsonar README.txt
-        
-    - name: Upload artifacts
-      uses: actions/upload-artifact@v4
-      with:
-        name: reflectsonar-linux-x64
-        path: dist/reflectsonar-linux-x64.tar.gz
-        
-  build-windows:
-    runs-on: windows-latest
-    
-    steps:
-    - uses: actions/checkout@v4
-    
-    - name: Set up Python
-      uses: actions/setup-python@v4
-      with:
-        python-version: '3.12'
-        
-    - name: Install dependencies
-      run: |
-        python -m pip install --upgrade pip
-        pip install -r requirements.txt
-        pip install pyinstaller
-        
-    - name: Build binary
-      run: |
-        python scripts/build_binary.py
-        
-    - name: Create release archive
-      run: |
-        cd dist
-        Compress-Archive -Path reflectsonar.exe, README.txt -DestinationPath reflectsonar-windows-x64.zip
-        
-    - name: Upload artifacts
-      uses: actions/upload-artifact@v4
-      with:
-        name: reflectsonar-windows-x64
-        path: dist/reflectsonar-windows-x64.zip
-        
-  build-macos:
-    runs-on: macos-latest
-    
-    steps:
-    - uses: actions/checkout@v4
-    
-    - name: Set up Python
-      uses: actions/setup-python@v4
-      with:
-        python-version: '3.12'
-        
-    - name: Install dependencies
-      run: |
-        python -m pip install --upgrade pip
-        pip install -r requirements.txt
-        pip install pyinstaller
-        
-    - name: Build binary
-      run: |
-        python scripts/build_binary.py
-        
-    - name: Create release archive
-      run: |
-        cd dist
-        tar -czf reflectsonar-macos-x64.tar.gz reflectsonar README.txt
-        
-    - name: Upload artifacts
-      uses: actions/upload-artifact@v4
-      with:
-        name: reflectsonar-macos-x64
-        path: dist/reflectsonar-macos-x64.tar.gz
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.py }}
+
+      - name: Cache pip
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-${{ matrix.py }}-${{ hashFiles('**/requirements.txt') }}
+          restore-keys: |
+            ${{ runner.os }}-pip-${{ matrix.py }}-
+
+      - name: Install dependencies
+        shell: bash
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install pyinstaller
+
+      # Optional: install UPX on Linux/Windows to honor upx=True in your .spec
+      - name: Install UPX (Linux)
+        if: matrix.os == 'linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y upx
+
+      - name: Install UPX (Windows)
+        if: matrix.os == 'windows'
+        shell: powershell
+        run: |
+          choco install upx -y
+
+      - name: Build binary
+        shell: bash
+        env:
+          RS_OS: ${{ matrix.os }}
+          RS_ARCH: ${{ matrix.arch }}
+        run: |
+          # For macOS, optionally target specific arch/universal
+          if [[ "${{ matrix.os }}" == "macos" ]]; then
+            export PYINSTALLER_TARGET_ARCH="${{ matrix.arch }}"   # read this in your script if you want
+          fi
+          python scripts/build_binary.py
+
+      - name: Create release archive
+        shell: bash
+        run: |
+          cd dist
+          APPNAME="reflectsonar"
+          ARCHIVE_BASENAME="${APPNAME}-${{ matrix.os }}-${{ matrix.arch }}"
+          if [[ "${{ matrix.os }}" == "windows" ]]; then
+            # Ensure README exists even on Windows builds
+            if [ ! -f README.txt ]; then printf "ReflectSonar\n" > README.txt; fi
+            powershell -Command "Compress-Archive -Path ${APPNAME}.exe, README.txt -DestinationPath ${ARCHIVE_BASENAME}.zip"
+          else
+            tar -czf "${ARCHIVE_BASENAME}.tar.gz" ${APPNAME} README.txt
+          fi
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: reflectsonar-${{ matrix.os }}-${{ matrix.arch }}
+          path: |
+            dist/*.tar.gz
+            dist/*.zip
 
   release:
-    needs: [build-linux, build-windows, build-macos]
+    name: Create GitHub Release
+    needs: build
     runs-on: ubuntu-latest
-    if: startsWith(github.ref, 'refs/tags/')
-    
+    if: startsWith(github.ref, 'refs/tags/')   # only on tag pushes
     steps:
-    - uses: actions/checkout@v4
-    
-    - name: Download all artifacts
-      uses: actions/download-artifact@v4
-      with:
-        path: artifacts
-        
-    - name: Create Release
-      uses: softprops/action-gh-release@v1
-      with:
-        files: |
-          artifacts/reflectsonar-linux-x64/reflectsonar-linux-x64.tar.gz
-          artifacts/reflectsonar-windows-x64/reflectsonar-windows-x64.zip
-          artifacts/reflectsonar-macos-x64/reflectsonar-macos-x64.tar.gz
-        generate_release_notes: true
-        draft: false
-        prerelease: false
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: List downloaded files
+        run: |
+          find artifacts -type f -maxdepth 3 -print
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            artifacts/**/reflectsonar-*.tar.gz
+            artifacts/**/reflectsonar-*.zip
+          generate_release_notes: true
+          draft: false
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
