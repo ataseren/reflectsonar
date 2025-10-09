@@ -66,7 +66,7 @@ jobs:
         Compress-Archive -Path reflectsonar.exe, README.txt -DestinationPath reflectsonar-windows-x64.zip
         
     - name: Upload artifacts
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
         name: reflectsonar-windows-x64
         path: dist/reflectsonar-windows-x64.zip
@@ -98,7 +98,7 @@ jobs:
         tar -czf reflectsonar-macos-x64.tar.gz reflectsonar README.txt
         
     - name: Upload artifacts
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
         name: reflectsonar-macos-x64
         path: dist/reflectsonar-macos-x64.tar.gz
