@@ -8,9 +8,9 @@ import sys
 import signal
 import yaml
 
-from report.pdfgen import generate_pdf
-from report.utils import log, handle_exception
-from api.get_data import get_report_data
+from .report.pdfgen import generate_pdf
+from .report.utils import log, handle_exception
+from .api.get_data import get_report_data
 
 def load_config(config_path):
     """Loads configuration from a YAML file"""

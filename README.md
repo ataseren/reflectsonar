@@ -17,7 +17,50 @@ SonarQube API. ReflectSonar just provides a way to generate the report.
 
 ### Installation
 
-*More options will be added soon.*
+#### Option 1: Install from PyPI (Recommended)
+
+```bash
+# Install ReflectSonar
+pip install reflectsonar
+
+# Run directly
+reflectsonar -p "your-project-key" -t "your-token" -u "http://your-sonarqube:9000"
+```
+
+#### Option 2: Download Pre-built Binary
+
+Download the latest binary release for your platform from the [Releases page](https://github.com/ataseren/reflectsonar/releases):
+
+**Linux:**
+```bash
+# Download and extract
+wget https://github.com/ataseren/reflectsonar/releases/latest/download/reflectsonar-linux-x64.tar.gz
+tar -xzf reflectsonar-linux-x64.tar.gz
+
+# Make executable and run
+chmod +x reflectsonar
+./reflectsonar --help
+```
+
+**Windows:**
+```powershell
+# Download reflectsonar-windows-x64.zip from releases page
+# Extract and run reflectsonar.exe
+.\reflectsonar.exe --help
+```
+
+**macOS:**
+```bash
+# Download and extract
+wget https://github.com/ataseren/reflectsonar/releases/latest/download/reflectsonar-macos-x64.tar.gz
+tar -xzf reflectsonar-macos-x64.tar.gz
+
+# Make executable and run  
+chmod +x reflectsonar
+./reflectsonar --help
+```
+
+#### Option 3: Install from Source
 
 ```bash
 # Clone the repository
@@ -29,6 +72,24 @@ pip install -r requirements.txt
 ```
 
 ### Basic Usage
+
+#### Using the Binary (Recommended)
+
+```bash
+# Generate a report for your project
+./reflectsonar -p "your-project-key" -t "your-sonarqube-token" -u "http://your-sonarqube-server:9000"
+
+# With custom output path
+./reflectsonar -p "my-app" -t "squ_abc123..." -o "reports/my-app-quality-report.pdf"
+
+# With verbose logging
+./reflectsonar -p "my-app" -t "squ_abc123..." --verbose
+
+# Using a configuration file
+./reflectsonar -c config.yaml
+```
+
+#### Using Python Source
 
 ```bash
 # Generate a report for your project

@@ -9,7 +9,7 @@ import time
 from reportlab.platypus import SimpleDocTemplate, PageBreak
 from reportlab.lib.pagesizes import A4
 from reportlab.lib.units import cm
-from data.models import ReportData #pylint: disable=import-error
+from ..data.models import ReportData
 
 from .utils import draw_logo, BookmarkFlowable, log # pylint: disable=relative-beyond-top-level
 from .cover_page import generate_cover_page # pylint: disable=relative-beyond-top-level

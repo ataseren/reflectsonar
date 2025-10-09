@@ -1,0 +1,79 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "reflectsonar"
+version = "1.0.0"
+authors = [
+    {name = "Ata Seren", email = "ata.seren@hotmail.com"},
+]
+description = "PDF Report Generator for SonarQube Analysis"
+readme = "README.md"
+license = "MIT"
+requires-python = ">=3.8"
+classifiers = [
+    "Development Status :: 5 - Production/Stable",
+    "Intended Audience :: Developers",
+    "Topic :: Software Development :: Quality Assurance",
+    "Topic :: Software Development :: Testing",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.8",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Operating System :: OS Independent",
+    "Environment :: Console",
+]
+keywords = ["sonarqube", "quality", "report", "pdf", "analysis", "code-quality"]
+dependencies = [
+    "certifi>=2023.0.0",
+    "chardet>=5.0.0",
+    "charset-normalizer>=3.0.0",
+    "idna>=3.0",
+    "pillow>=10.0.0",
+    "reportlab>=4.0.0",
+    "requests>=2.28.0",
+    "urllib3>=2.0.0",
+    "pyyaml>=6.0.0",
+]
+
+[project.urls]
+Homepage = "https://github.com/ataseren/reflectsonar"
+Repository = "https://github.com/ataseren/reflectsonar"
+Issues = "https://github.com/ataseren/reflectsonar/issues"
+Changelog = "https://github.com/ataseren/reflectsonar/blob/main/CHANGELOG.md"
+
+[project.scripts]
+reflectsonar = "reflectsonar.main:main"
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.0.0",
+    "pytest-cov>=4.0.0",
+    "black>=23.0.0",
+    "flake8>=6.0.0",
+    "pylint>=2.17.0",
+    "mypy>=1.0.0",
+    "build>=0.10.0",
+    "twine>=4.0.0",
+]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+"reflectsonar.report" = ["*.png"]
+
+[tool.black]
+line-length = 100
+target-version = ['py38']
+
+[tool.pylint.messages_control]
+disable = ["C0103", "R0903"]
+
+[tool.mypy]
+python_version = "3.8"
+warn_return_any = true
+warn_unused_configs = true

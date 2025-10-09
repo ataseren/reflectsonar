@@ -5,10 +5,10 @@ import traceback
 from typing import Dict, List
 import requests
 
-from data.models import (SonarQubeProject, SonarQubeIssue, SonarQubeMeasure, # pylint: disable=import-error
+from ..data.models import (SonarQubeProject, SonarQubeIssue, SonarQubeMeasure, # pylint: disable=import-error
                          SonarQubeHotspot, ReportData, SonarQubeRule)  # pylint: disable=import-error
 
-from report.utils import log # pylint: disable=import-error
+from ..report.utils import log
 
 # Helpers
 def get_json(url: str, token: str) -> Dict:

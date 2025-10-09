@@ -1,0 +1,11 @@
+include README.md
+include LICENSE
+include CHANGELOG.md
+include VERSION
+include requirements.txt
+include config.yaml.example
+recursive-include src/reflectsonar/report *.png
+global-exclude __pycache__
+global-exclude *.py[co]
+global-exclude .DS_Store
+global-exclude *.so
