@@ -26,7 +26,7 @@ jobs:
         
     - name: Build binary
       run: |
-        python build_binary.py
+        python scripts/build_binary.py
         
     - name: Create release archive
       run: |
@@ -58,7 +58,7 @@ jobs:
         
     - name: Build binary
       run: |
-        python build_binary.py
+        python scripts/build_binary.py
         
     - name: Create release archive
       run: |
@@ -90,7 +90,7 @@ jobs:
         
     - name: Build binary
       run: |
-        python build_binary.py
+        python scripts/build_binary.py
         
     - name: Create release archive
       run: |
@@ -112,7 +112,7 @@ jobs:
     - uses: actions/checkout@v4
     
     - name: Download all artifacts
-      uses: actions/download-artifact@v3
+      uses: actions/download-artifact@v4
       with:
         path: artifacts
         
