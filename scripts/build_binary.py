@@ -8,6 +8,7 @@ import os
 import sys
 import subprocess
 import shutil
+import platform
 from pathlib import Path
 
 def clean_build_artifacts():
@@ -138,13 +139,26 @@ def build_binary():
         subprocess.run(cmd, check=True, capture_output=True, text=True)
         print("Binary built successfully!")
         
-        # Check if binary was created
-        binary_path = Path('dist/reflectsonar')
+        # Check if binary was created (platform-specific)
+        if platform.system() == 'Windows':
+            binary_path = Path('dist/reflectsonar.exe')
+        else:
+            binary_path = Path('dist/reflectsonar')
+            
         if binary_path.exists():
             print(f"Binary location: {binary_path.absolute()}")
             print(f"Binary size: {binary_path.stat().st_size / (1024*1024):.1f} MB")
         else:
-            print("Error: Binary not found in expected location")
+            # Try both possible locations to debug
+            exe_path = Path('dist/reflectsonar.exe')
+            unix_path = Path('dist/reflectsonar')
+            print(f"Error: Binary not found in expected location: {binary_path}")
+            print(f"Checked for .exe: {exe_path.exists()} at {exe_path}")
+            print(f"Checked for unix: {unix_path.exists()} at {unix_path}")
+            # List all files in dist directory for debugging
+            dist_dir = Path('dist')
+            if dist_dir.exists():
+                print(f"Files in dist/: {list(dist_dir.iterdir())}")
             return False
             
     except subprocess.CalledProcessError as e:
