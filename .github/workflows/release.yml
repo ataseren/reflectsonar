@@ -17,7 +17,7 @@ jobs:
           # Linux x64 (pin older runner for better glibc compatibility, or use container)
           - os: linux
             arch: x64
-            runner: ubuntu-20.04
+            runner: ubuntu-latest
             py: '3.12'
           # Windows x64
           - os: windows
@@ -27,12 +27,12 @@ jobs:
           # macOS arm64 (Apple Silicon)
           - os: macos
             arch: arm64
-            runner: macos-14
+            runner: macos-latest
             py: '3.12'
           # macOS x64 (Intel)
           - os: macos
             arch: x64
-            runner: macos-13
+            runner: macos-latest
             py: '3.12'
 
     steps:
