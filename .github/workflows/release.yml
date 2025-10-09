@@ -34,7 +34,7 @@ jobs:
         tar -czf reflectsonar-linux-x64.tar.gz reflectsonar README.txt
         
     - name: Upload artifacts
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
         name: reflectsonar-linux-x64
         path: dist/reflectsonar-linux-x64.tar.gz
