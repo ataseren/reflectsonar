@@ -1,7 +1,7 @@
 # ReflectSonar
 
 <p align="center">
-  <img src="./rs-logo.png" width="400" alt="reflectsonar-logo">
+  <img src="https://raw.githubusercontent.com/ataseren/reflectsonar/refs/heads/main/rs-logo.png" width="400" alt="reflectsonar-logo">
 </p>
 
 **PDF Report Generator for SonarQube Analysis**
@@ -17,7 +17,7 @@ SonarQube API. ReflectSonar just provides a way to generate the report.
 
 ### Installation
 
-#### Option 1: Install from PyPI (Recommended)
+#### Option 1: Install from PyPI
 
 ```bash
 # Install ReflectSonar
@@ -128,25 +128,19 @@ python src/main.py -p "my-app" -t "squ_abc123..." --verbose
 - Quality metrics and ratings
 - Generation timestamp and SonarQube mode
 
-### 2. **Security Issues**
-- Vulnerabilities sorted by severity
-- Security hotspots with risk assessment
-- Code snippets showing problematic areas
+### 2. **Issues**
+- Security, reliability and maintainability issues
+- Affected code snippets and triggered rules
 
-### 3. **Reliability Issues**  
-- Bugs and reliability concerns
-- Impact analysis and severity breakdown
-- Complete file paths for easy navigation
-
-### 4. **Maintainability Issues**
-- Code smells and technical debt
-- Maintainability ratings and trends
-- Actionable improvement recommendations
-
-### 5. **Security Hotspots**
+### 3. **Security Hotspots**
 - Detailed security hotspot analysis
 - Risk categories and remediation guidance
 - Code context and security implications
+
+### 4. Rules
+- Rules triggered by the issues in a project
+- Mitigation and detailed description for the issue
+- Extra resources
 
 ## Contributing
 
@@ -160,4 +154,4 @@ Also, feel free to reach out to me via email or LinkedIn.
 
 ## License
 
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+This project is licensed under the GPL-3.0 License - see the [LICENSE](LICENSE) file for details.
