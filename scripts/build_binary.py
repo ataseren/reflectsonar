@@ -39,10 +39,6 @@ This script handles the package imports and calls the main function.
 """
 
 import sys
-import os
-
-# Add the src directory to Python path
-sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), 'src'))
 
 # Import and run the main function
 if __name__ == "__main__":
@@ -60,7 +56,7 @@ def create_pyinstaller_spec():
 
 a = Analysis(
     ['reflectsonar_entry.py'],
-    pathex=[],
+    pathex=['src'],
     binaries=[],
     datas=[
         ('src/reflectsonar/report/reflect-sonar.png', 'reflectsonar/report'),
