@@ -20,6 +20,40 @@ from .issues import ( generate_security_issues_page, # pylint: disable=relative-
 from .hotspots import generate_security_hotspots_page # pylint: disable=relative-beyond-top-level
 from .rules import generate_rules_page # pylint: disable=relative-beyond-top-level
 
+def create_pdf_progress_callback(progress_printer=print):
+    """Create a ReportLab progress callback that prints the current PDF page."""
+    state = {
+        "page": 0,
+        "pass_number": 1,
+    }
+
+    def render(final: bool = False):
+        details = []
+        if state["page"]:
+            details.append(f"page {state['page']}")
+        if state["pass_number"] > 1:
+            details.append(f"pass {state['pass_number']}")
+
+        suffix = f" ({', '.join(details)})" if details else ""
+        progress_printer(
+            f"\r🧱 Building final PDF document...{suffix}",
+            end="\n" if final else "",
+            flush=True,
+        )
+
+    def progress_callback(event_type, value):
+        if event_type == "STARTED":
+            render()
+        elif event_type == "PASS":
+            state["pass_number"] = max(int(value), 1)
+            render()
+        elif event_type == "PAGE":
+            state["page"] = max(int(value), 1)
+            render()
+        elif event_type == "FINISHED":
+            render(final=True)
+
+    return progress_callback
 
 def add_header_footer(canvas, doc):
     """Adds header and footer to each page of the PDF document"""
@@ -82,6 +116,7 @@ def generate_pdf(report: ReportData, output_path: str = None,
         creator="ReflectSonar PDF Generator",
         keywords=f"SonarQube,Quality,Report,{project_name}"
     )
+    doc.setProgressCallBack(create_pdf_progress_callback())
 
     # Container for all report elements
     elements = []
@@ -127,8 +162,6 @@ def generate_pdf(report: ReportData, output_path: str = None,
         generate_rules_page(report, elements, verbose)
 
     # Build the PDF
-    if verbose:
-        print("Building final PDF document...")
     doc.build(elements, onFirstPage=add_header_footer, onLaterPages=add_header_footer)
 
     log(verbose, f"PDF saved to: {final_path}")

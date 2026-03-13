@@ -9,7 +9,7 @@ import signal
 import yaml
 
 from .report.pdfgen import generate_pdf
-from .report.utils import log, handle_exception
+from .report.utils import log, handle_exception, print_message
 from .api.get_data import get_report_data
 
 def load_config(config_path):
@@ -20,7 +20,7 @@ def load_config(config_path):
         with open(config_path, 'r',  encoding="utf-8") as f:
             return yaml.safe_load(f) or {}
     except Exception as e: # pylint: disable=broad-exception-caught
-        print(f"Warning: Could not load config file {config_path}: {e}")
+        print_message(f"Warning: Could not load config file {config_path}: {e}")
         return {}
 
 def parse_arguments():
@@ -33,6 +33,12 @@ def parse_arguments():
     parser.add_argument('-u', '--url', help='SonarQube server URL', default="http://localhost:9000")
     parser.add_argument('-t', '--token', help='SonarQube authentication token')
     parser.add_argument('-v', '--verbose', action='store_true', help='Enable verbose logging')
+    parser.add_argument('--no-snippets', action='store_true',
+                        help='Skip fetching and rendering code snippets')
+    parser.add_argument('--high-severity-only', action='store_true',
+                        help='Only include BLOCKER or HIGH-severity issues and HIGH-probability hotspots')
+    parser.add_argument('--no-rules', action='store_true',
+                        help='Skip fetching rule descriptions and omit the Rules Reference section')
 
     args = parser.parse_args()
 
@@ -49,6 +55,12 @@ def parse_arguments():
             args.output = config['output']
         if 'verbose' in config:
             args.verbose = config['verbose']
+        if 'no_snippets' in config:
+            args.no_snippets = config['no_snippets']
+        if 'high_severity_only' in config:
+            args.high_severity_only = config['high_severity_only']
+        if 'no_rules' in config:
+            args.no_rules = config['no_rules']
 
     # Validate required fields
     if not args.project:
@@ -60,9 +72,9 @@ def parse_arguments():
 
 def handle_interrupt(signum, frame): # pylint: disable=unused-argument
     """Handles keyboard interrupt (Ctrl+C)"""
-    print("\n")
-    print("🛑 Report generation interrupted by user")
-    print("✨ Thanks for using ReflectSonar!")
+    print_message()
+    print_message("🛑 Report generation interrupted by user")
+    print_message("✨ Thanks for using ReflectSonar!")
     sys.exit(0)
 
 # Main function to generate the PDF report
@@ -77,20 +89,31 @@ def main():
         log(args.verbose, f"📊 Project: {args.project}")
         log(args.verbose, f"🌐 SonarQube URL: {args.url}")
         log(args.verbose, f"📄 Output: {args.output or f'reflect_sonar_report_{args.project}_[timestamp].pdf'}") # pylint: disable=line-too-long
+        log(args.verbose, f"🧩 Code snippets enabled: {not args.no_snippets}")
+        log(args.verbose, f"🚨 Top severity only: {args.high_severity_only}")
+        log(args.verbose, f"📚 Rules section enabled: {not args.no_rules}")
 
         # Fetch data from SonarQube
         log(args.verbose, "📡 Connecting to SonarQube and fetching data...")
-        print("📡 Fetching data from SonarQube... (Press Ctrl+C to cancel)")
+        print_message("📡 Fetching data from SonarQube... (Press Ctrl+C to cancel)")
 
-        report_data = get_report_data(args.url, args.token, args.project, verbose=args.verbose)
+        report_data = get_report_data(
+            args.url,
+            args.token,
+            args.project,
+            verbose=args.verbose,
+            include_snippets=not args.no_snippets,
+            high_severity_only=args.high_severity_only,
+            include_rules=not args.no_rules,
+        )
 
-        print("📄 Generating PDF report... (Press Ctrl+C to cancel)")
+        print_message("📄 Generating PDF report... (Press Ctrl+C to cancel)")
 
         output_file = generate_pdf(report_data, args.output, args.project, verbose=args.verbose)
 
         # Success message
-        print("✅ PDF report generated successfully!")
-        print(f"📁 Saved to: {output_file}")
+        print_message("✅ PDF report generated successfully!")
+        print_message(f"📁 Saved to: {output_file}")
 
         return 0
 

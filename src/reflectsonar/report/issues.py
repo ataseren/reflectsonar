@@ -2,8 +2,6 @@
 This module generates issue pages of the report
 by using data from SonarQube.
 """
-import re
-import html
 
 from reportlab.platypus import (
      Paragraph, Spacer, Table, TableStyle, KeepTogether
@@ -14,7 +12,10 @@ from reportlab.lib import colors
 
 from .utils import (style_section_title, style_issue_meta, style_normal, # pylint: disable=relative-beyond-top-level
     get_severity_order, get_severity_list, # pylint: disable=relative-beyond-top-level
-    severity_badge, SeverityBookmarkFlowable, ParagraphWithAnchor) # pylint: disable=relative-beyond-top-level
+    severity_badge, SeverityBookmarkFlowable, ParagraphWithAnchor, # pylint: disable=relative-beyond-top-level
+    escape_reportlab_text, plain_text_to_reportlab, format_code_snippet_for_reportlab) # pylint: disable=relative-beyond-top-level
+
+ISSUE_TABLE_MAX_ROWS = 120
 
 def get_issues_by_impact_category(issues, category: str):
     """Filters issues by their impact category"""
@@ -44,8 +45,47 @@ def get_issues_by_impact_category(issues, category: str):
 
     return filtered_issues
 
+def get_issue_display_severity(issue, mode: str):
+    """Returns the severity label that should be shown in the report"""
+    if mode == "MQR" and issue.impacts:
+        for impact in issue.impacts:
+            impact_severity = impact.get('severity', '')
+            if impact_severity:
+                return impact_severity
+    return issue.severity
+
+def get_issue_sort_order(issue, mode: str):
+    """Returns the sort order for an issue based on the active SonarQube mode"""
+    return get_severity_order(get_issue_display_severity(issue, mode), mode)
+
+def chunk_issues_for_tables(issues, max_rows: int = None):
+    """Split large issue lists into smaller chunks to avoid giant ReportLab tables"""
+    if max_rows is None:
+        max_rows = ISSUE_TABLE_MAX_ROWS
+
+    chunks = []
+    current_chunk = []
+    current_rows = 0
+
+    for issue in issues:
+        row_cost = 2 if issue.code_snippet and issue.code_snippet.strip() else 1
+
+        if current_chunk and current_rows + row_cost > max_rows:
+            chunks.append(current_chunk)
+            current_chunk = []
+            current_rows = 0
+
+        current_chunk.append(issue)
+        current_rows += row_cost
+
+    if current_chunk:
+        chunks.append(current_chunk)
+
+    return chunks
+
 # Create a table displaying issues with severity, rule, and message
-def create_issue_table(issues, mode: str = "STANDARD", section_name: str = ""):
+def create_issue_table(issues, mode: str = "STANDARD", section_name: str = "",
+                       seen_severities=None, sort_issues: bool = True):
     """Creates a table of issues with severity, file path, rule, message, and code snippet"""
     if not issues:
         # Create a list with spacer and paragraph for better formatting
@@ -58,23 +98,13 @@ def create_issue_table(issues, mode: str = "STANDARD", section_name: str = ""):
         ]
         return KeepTogether(content)
 
-    # Sort issues by severity (most severe first)
-    def get_issue_severity_for_sorting(issue):
-        if mode == "MQR" and issue.impacts:
-            # For MQR mode, use impact severity
-            for impact in issue.impacts:
-                impact_severity = impact.get('severity', '')
-                if impact_severity:
-                    return get_severity_order(impact_severity, mode)
-            return 99  # fallback if no impact severity found
-        else:
-            # For Standard mode, use issue severity
-            return get_severity_order(issue.severity, mode)
+    if seen_severities is None:
+        seen_severities = set()
 
-    sorted_issues = sorted(issues, key=get_issue_severity_for_sorting)
+    sorted_issues = sorted(issues, key=lambda issue: get_issue_sort_order(issue, mode)) \
+        if sort_issues else issues
 
     table_data = []
-    severity_first_occurrence = {}  # Track first occurrence of each severity
 
     # Add header
     header_style = ParagraphStyle("Header", parent=style_normal,
@@ -85,21 +115,35 @@ def create_issue_table(issues, mode: str = "STANDARD", section_name: str = ""):
         Paragraph("Rule & Message", header_style)
     ])
 
+    file_path_style = ParagraphStyle(
+        "FilePathStyle",
+        parent=style_issue_meta,
+        fontSize=8,  # Slightly smaller for paths
+        wordWrap='LTR'  # Better word wrapping for long paths
+    )
+    code_style = ParagraphStyle(
+        "CodeStyle",
+        parent=style_normal,
+        fontName="Courier-Bold",  # Use bold Courier for better visibility
+        fontSize=9,  # Slightly larger font
+        textColor=colors.black,  # Black text for better readability
+        backColor=colors.Color(0.95, 0.95, 0.95),  # Light gray background
+        leftIndent=15,
+        rightIndent=15,
+        spaceBefore=6,
+        spaceAfter=6,
+        borderWidth=1,
+        borderColor=colors.Color(0.8, 0.8, 0.8),  # Light border
+        borderPadding=8
+    )
+
     for issue in sorted_issues:
-        # Get the appropriate severity for this issue
-        display_severity = issue.severity
-        if mode == "MQR" and issue.impacts:
-            # For MQR mode, use impact severity for display
-            for impact in issue.impacts:
-                impact_severity = impact.get('severity', '')
-                if impact_severity:
-                    display_severity = impact_severity
-                    break
+        display_severity = get_issue_display_severity(issue, mode)
 
         # Check if this is the first occurrence of this severity level
         anchor_id = None
-        if display_severity not in severity_first_occurrence:
-            severity_first_occurrence[display_severity] = True
+        if display_severity not in seen_severities:
+            seen_severities.add(display_severity)
             # Create anchor ID for this severity in this section
             anchor_id = f"{section_name}_{display_severity}".replace(" ", "_")
 
@@ -130,30 +174,18 @@ def create_issue_table(issues, mode: str = "STANDARD", section_name: str = ""):
                 if current_line:
                     formatted_parts.append(current_line)
 
-                filename = "<br/>".join(formatted_parts)
+                filename = "<br/>".join(escape_reportlab_text(part) for part in formatted_parts)
             else:
-                filename = full_path
+                filename = escape_reportlab_text(full_path)
         else:
-            filename = full_path
+            filename = escape_reportlab_text(full_path)
 
         if issue.line:
             filename += f"<br/><b>(Line {issue.line})</b>"
 
-        # Remove all HTML tags from the message to prevent parsing conflicts
-        # This preserves the text content while removing problematic markup
-        cleaned_message = re.sub(r'<[^>]+>', '', issue.message)
-
-        # Also clean up any HTML entities that might remain
-        cleaned_message = html.unescape(cleaned_message)
-
-        rule_and_message = f"<b>{issue.rule}</b><br/>{cleaned_message}"
-
-        # Create a custom style for file paths
-        file_path_style = ParagraphStyle(
-            "FilePathStyle",
-            parent=style_issue_meta,
-            fontSize=8,  # Slightly smaller for paths
-            wordWrap='LTR'  # Better word wrapping for long paths
+        rule_and_message = (
+            f"<b>{escape_reportlab_text(issue.rule)}</b><br/>"
+            f"{plain_text_to_reportlab(issue.message)}"
         )
 
         # Create filename paragraph, with anchor if this is first occurrence of severity
@@ -171,49 +203,7 @@ def create_issue_table(issues, mode: str = "STANDARD", section_name: str = ""):
 
         # Add code snippet row if available
         if issue.code_snippet and issue.code_snippet.strip():
-            # Create enhanced code style for better formatting
-            code_style = ParagraphStyle(
-                "CodeStyle", 
-                parent=style_normal,
-                fontName="Courier-Bold",  # Use bold Courier for better visibility
-                fontSize=9,  # Slightly larger font
-                textColor=colors.black,  # Black text for better readability
-                backColor=colors.Color(0.95, 0.95, 0.95),  # Light gray background
-                leftIndent=15,
-                rightIndent=15,
-                spaceBefore=6,
-                spaceAfter=6,
-                borderWidth=1,
-                borderColor=colors.Color(0.8, 0.8, 0.8),  # Light border
-                borderPadding=8
-            )
-
-            # Enhanced code formatting with indentation preservation
-            formatted_code = issue.code_snippet
-
-            # First, handle line breaks
-            formatted_code = formatted_code.replace('\n', '<br/>')
-
-            # Remove HTML span tags
-            formatted_code = re.sub(r"</?span[^>]*>", "", formatted_code)
-
-            # Preserve indentation by converting leading spaces to non-breaking spaces
-            # This regex finds spaces at the beginning of lines (after <br/> or at start)
-            formatted_code = re.sub(r'(^|\<br/\>)( +)',
-                                  lambda m: m.group(1) + '&nbsp;' * len(m.group(2)),
-                                  formatted_code)
-
-            # Also preserve spaces within the code (multiple spaces)
-            formatted_code = re.sub(r'  +', lambda m: '&nbsp;' * len(m.group(0)), formatted_code)
-
-            # Convert tabs to 4 non-breaking spaces
-            formatted_code = formatted_code.replace('\t', '&nbsp;&nbsp;&nbsp;&nbsp;')
-
-            # Highlight the problematic line (>>>) with red color
-            formatted_code = re.sub(r'(&gt;&gt;&gt;[^<]+)', r'<font color="red"><b>\1</b></font>', formatted_code) # pylint: disable=line-too-long
-
-            # Make line numbers slightly gray (but preserve their spacing)
-            formatted_code = re.sub(r'(\s*)(\d+)(:)', r'\1<font color="gray">\2</font>\3', formatted_code) # pylint: disable=line-too-long
+            formatted_code = format_code_snippet_for_reportlab(issue.code_snippet)
 
             code_paragraph = Paragraph(
                 f"<b><font color='darkblue'>📄 Problematic Code:</font></b><br/>"
@@ -314,7 +304,24 @@ def create_issue_section(title: str, issues, elements, mode: str = "STANDARD"):
         elements.append(Paragraph("<b>Total: 0 issues</b>", style_issue_meta))
 
     elements.append(Spacer(1, 0.5*cm))
-    elements.append(create_issue_table(issues, mode, title))
+
+    if not issues:
+        elements.append(create_issue_table(issues, mode, title))
+    else:
+        sorted_issues = sorted(issues, key=lambda issue: get_issue_sort_order(issue, mode))
+        seen_severities = set()
+
+        for issue_chunk in chunk_issues_for_tables(sorted_issues):
+            elements.append(
+                create_issue_table(
+                    issue_chunk,
+                    mode,
+                    title,
+                    seen_severities=seen_severities,
+                    sort_issues=False,
+                )
+            )
+
     elements.append(Spacer(1, 1*cm))
 
 # Generate Security issues section

@@ -3,6 +3,8 @@ Utility functions and classes for report generation
 """
 
 import os
+import html
+import re
 import traceback
 
 from reportlab.platypus import Flowable, Paragraph
@@ -90,6 +92,9 @@ style_rule_subtitle = ParagraphStyle("RuleSubtitle", parent=styles["Heading3"],
 style_section_key = ParagraphStyle("SectionKey", parent=styles["Heading3"],fontSize=11,
                             fontName="Helvetica-Bold", spaceAfter=4, spaceBefore=6, italic=False)
 
+_PROGRESS_ACTIVE = False
+_PROGRESS_LENGTH = 0
+
 class CircleBadge(Flowable):
     """Flowable to create a circular badge with a letter inside"""
     def __init__(self, letter, radius=12, color=HexColor("#D50000")):
@@ -122,7 +127,34 @@ def badge(letter):
 def log(verbose: bool, message: str):
     """Print message if verbose mode is enabled"""
     if verbose:
+        finish_progress()
         print(message)
+
+def log_progress(verbose: bool, message: str):
+    """Update a single-line progress message when verbose mode is enabled."""
+    if not verbose:
+        return
+
+    global _PROGRESS_ACTIVE, _PROGRESS_LENGTH
+
+    padded_message = message + (" " * max(0, _PROGRESS_LENGTH - len(message)))
+    print(f"\r{padded_message}", end="", flush=True)
+    _PROGRESS_ACTIVE = True
+    _PROGRESS_LENGTH = len(message)
+
+def finish_progress():
+    """Finish the active single-line progress message, if any."""
+    global _PROGRESS_ACTIVE, _PROGRESS_LENGTH
+
+    if _PROGRESS_ACTIVE:
+        print()
+        _PROGRESS_ACTIVE = False
+        _PROGRESS_LENGTH = 0
+
+def print_message(message: str = ""):
+    """Print a normal message without colliding with an active progress line."""
+    finish_progress()
+    print(message)
 
 # Convert numeric score to letter grade
 def score_to_grade(score: float) -> str:
@@ -206,11 +238,49 @@ def draw_logo(canvas, logo_path, x, y, width, height):
             canvas.setFont("Helvetica", 8)
             canvas.drawString(x + 5, y + height/2, "Logo")
     except Exception: # pylint: disable=broad-exception-caught
-        print("WARNING: Failed to add the logo.")
+        print_message("WARNING: Failed to add the logo.")
 
 def severity_badge(severity: str, mode: str = "MQR"):
     """Create a colored badge for the given issue severity"""
     return CircleBadge(severity[0].upper(), radius=8, color=get_severity_color(severity, mode))
+
+def _normalize_text(text) -> str:
+    """Normalize external text content before embedding it in ReportLab markup."""
+    if text is None:
+        return ""
+    return html.unescape(str(text)).replace("\r\n", "\n").replace("\r", "\n")
+
+def escape_reportlab_text(text) -> str:
+    """Escape text so ReportLab treats it as plain content, not markup."""
+    return html.escape(_normalize_text(text), quote=True)
+
+def plain_text_to_reportlab(text) -> str:
+    """Convert plain text to safe ReportLab markup with preserved line breaks."""
+    return escape_reportlab_text(text).replace("\n", "<br/>")
+
+def format_code_snippet_for_reportlab(code) -> str:
+    """Format raw source text as safe ReportLab markup for monospace display."""
+    if not code:
+        return ""
+
+    formatted_lines = []
+    for raw_line in _normalize_text(code).replace("\t", "    ").split("\n"):
+        escaped_line = html.escape(raw_line, quote=True)
+        escaped_line = re.sub(r" {2,}", lambda match: "&nbsp;" * len(match.group(0)),
+                              escaped_line)
+        escaped_line = re.sub(
+            r'^((?:&gt;&gt;&gt; )?(?:&nbsp;| )*)(\d+)(:)',
+            r'\1<font color="gray">\2</font>\3',
+            escaped_line,
+            count=1,
+        )
+
+        if escaped_line.startswith("&gt;&gt;&gt;"):
+            escaped_line = f'<font color="red"><b>{escaped_line}</b></font>'
+
+        formatted_lines.append(escaped_line)
+
+    return "<br/>".join(formatted_lines)
 
 def handle_exception(e: Exception, verbose: bool) -> int:
     """ Handle exceptions and print user-friendly messages"""
@@ -249,24 +319,24 @@ def handle_exception(e: Exception, verbose: bool) -> int:
     if payload:
         lines, code = payload
         for line in lines:
-            print(line)
+            print_message(line)
         return code
 
     # Generic classification by message content
     msg = str(e)
     lower = msg.lower()
     if "401" in lower or "unauthorized" in lower:
-        print("\n🔐 Authentication Error: Invalid SonarQube token")
-        print("💡 Check your token and permissions")
+        print_message("\n🔐 Authentication Error: Invalid SonarQube token")
+        print_message("💡 Check your token and permissions")
     elif "404" in lower or "not found" in lower:
-        print("\n🔍 Project Not Found: Cannot find the specified project")
-        print("💡 Verify your project key is correct")
+        print_message("\n🔍 Project Not Found: Cannot find the specified project")
+        print_message("💡 Verify your project key is correct")
     else:
-        print(f"\n❌ Error generating report: {msg}")
+        print_message(f"\n❌ Error generating report: {msg}")
 
     if verbose:
-        print("\n🔍 Detailed error information:")
+        print_message("\n🔍 Detailed error information:")
         traceback.print_exc()
     else:
-        print("\n💡 Run with --verbose for detailed error information")
+        print_message("\n💡 Run with --verbose for detailed error information")
     return 1

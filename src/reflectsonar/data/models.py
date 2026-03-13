@@ -152,3 +152,4 @@ class ReportData:
     quality_profiles: List[Dict[str, Any]]
     mode_setting: bool
     rules: Dict[str, SonarQubeRule] = field(default_factory=dict)
+    exclusions_note: Optional[str] = None

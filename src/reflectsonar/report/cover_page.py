@@ -130,7 +130,14 @@ def generate_cover_page(report, elements):
         ("SPAN", (0, 2), (2, 2)),
     ]))
     elements.append(t)
-    elements.append(Spacer(1, 2*cm))
+
+    exclusions_note = getattr(report, "exclusions_note", None)
+    if exclusions_note:
+        elements.append(Spacer(1, 0.4*cm))
+        elements.append(Paragraph(f"<i>{exclusions_note}</i>", style_meta))
+        elements.append(Spacer(1, 1.6*cm))
+    else:
+        elements.append(Spacer(1, 2*cm))
 
     # Footer note
     note = (

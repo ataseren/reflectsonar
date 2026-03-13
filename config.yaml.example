@@ -15,3 +15,12 @@ output: reports/quality-report.pdf
 
 # Enable verbose logging (bool)
 verbose: false
+
+# Skip fetching and rendering code snippets (bool)
+no_snippets: false
+
+# Only include BLOCKER or HIGH-severity issues and HIGH-probability hotspots (bool)
+high_severity_only: false
+
+# Skip fetching rule descriptions and omit the Rules Reference section (bool)
+no_rules: false

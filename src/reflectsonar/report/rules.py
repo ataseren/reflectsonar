@@ -7,7 +7,8 @@ import re
 from reportlab.platypus import Paragraph, Spacer
 from reportlab.lib.units import cm
 from .utils import (style_section_title, style_normal, # pylint: disable=relative-beyond-top-level
-                    style_section_key, style_rule_title, log) # pylint: disable=relative-beyond-top-level
+                    style_section_key, style_rule_title, log, log_progress, # pylint: disable=relative-beyond-top-level
+                    finish_progress) # pylint: disable=relative-beyond-top-level
 
 
 def generate_rules_page(report, elements, verbose=False):
@@ -24,16 +25,7 @@ def generate_rules_page(report, elements, verbose=False):
         log(verbose, "   No rules found in report")
         return
 
-    # Print raw data for debugging
-    if verbose:
-        print(f"   Found {len(report.rules)} rules:")
-        for rule_key, rule in report.rules.items():
-            print(f"   - {rule_key}: {rule.name}")
-            print(f"     Description sections: {len(rule.description_sections)}")
-            for i, section in enumerate(rule.description_sections):
-                section_key = section.get('key', 'unknown')
-                content_length = len(section.get('content', ''))
-                print(f"       Section {i}: {section_key} ({content_length} chars)")
+    log(verbose, f"   Found {len(report.rules)} rules with description data")
 
     # Add basic introduction
     intro_text = f"This section contains {len(report.rules)} rules found in the analysis."
@@ -41,8 +33,10 @@ def generate_rules_page(report, elements, verbose=False):
     elements.append(Spacer(1, 0.3*cm))
 
     # Add basic rule information (no complex parsing)
-    for rule_key, rule in sorted(report.rules.items()):
+    total_rules = len(report.rules)
+    for index, (rule_key, rule) in enumerate(sorted(report.rules.items()), start=1):
         try:
+            log_progress(verbose, f"   Rendering rules reference... {index}/{total_rules} ({rule_key})")
             # Rule title - escape HTML special characters to prevent parsing issues
             rule_title = rule.name or rule_key
             # Escape HTML special characters that could interfere with markup
@@ -204,4 +198,5 @@ def generate_rules_page(report, elements, verbose=False):
             elements.append(Paragraph(f"Rule: {rule_key} (processing error)", style_normal))
             elements.append(Spacer(1, 0.2*cm))
 
+    finish_progress()
     elements.append(Spacer(1, 0.5*cm))

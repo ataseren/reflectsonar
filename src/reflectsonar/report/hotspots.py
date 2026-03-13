@@ -3,9 +3,6 @@ This module generates hotspot pages of the report
 by using data from SonarQube.
 """
 
-import re
-import html
-
 from reportlab.platypus import (
      Paragraph, Spacer, Table, TableStyle, KeepTogether
 )
@@ -15,7 +12,8 @@ from reportlab.lib import colors
 
 from .utils import ( # pylint: disable=relative-beyond-top-level
     style_section_title, style_issue_meta, style_normal, # pylint: disable=relative-beyond-top-level
-    CircleBadge, BookmarkFlowable # pylint: disable=relative-beyond-top-level
+    CircleBadge, BookmarkFlowable, escape_reportlab_text, # pylint: disable=relative-beyond-top-level
+    plain_text_to_reportlab, format_code_snippet_for_reportlab # pylint: disable=relative-beyond-top-level
 )
 
 def create_hotspot_table(hotspots):
@@ -55,11 +53,39 @@ def create_hotspot_table(hotspots):
         Paragraph("Rule & Message", header_style)
     ])
 
+    prob_colors = {
+        "HIGH": colors.Color(0.8, 0.2, 0.2),    # Red
+        "MEDIUM": colors.Color(0.9, 0.6, 0.1),  # Orange
+        "LOW": colors.Color(0.9, 0.9, 0.2)      # Yellow
+    }
+    file_path_style = ParagraphStyle(
+        "FilePathStyle",
+        parent=style_issue_meta,
+        fontSize=8,  # Slightly smaller for paths
+        wordWrap='LTR'  # Better word wrapping for long paths
+    )
+    code_style = ParagraphStyle(
+        "CodeStyle",
+        parent=style_normal,
+        fontName="Courier-Bold",  # Use bold Courier for better visibility
+        fontSize=9,  # Slightly larger font
+        textColor=colors.black,  # Black text for better readability
+        backColor=colors.Color(1.0, 0.95, 0.95),  # Light red background for security focus
+        leftIndent=15,
+        rightIndent=15,
+        spaceBefore=6,
+        spaceAfter=6,
+        borderWidth=1,
+        borderColor=colors.Color(0.9, 0.7, 0.7),  # Light red border
+        borderPadding=8
+    )
+
     for hotspot in sorted_hotspots:
         # Use full component path instead of just filename
         full_path = hotspot.component
         # Remove project key prefix if present
-        full_path = full_path.replace(":", "")
+        if ":" in full_path:
+            full_path = full_path.split(":", 1)[1]
 
         # Smart path formatting - break long paths for better readability
         if len(full_path) > 40:
@@ -82,46 +108,35 @@ def create_hotspot_table(hotspots):
                 if current_line:
                     formatted_parts.append(current_line)
 
-                filename = "<br/>".join(formatted_parts)
+                filename = "<br/>".join(escape_reportlab_text(part) for part in formatted_parts)
             else:
-                filename = full_path
+                filename = escape_reportlab_text(full_path)
         else:
-            filename = full_path
+            filename = escape_reportlab_text(full_path)
 
         if hotspot.line:
             filename += f"<br/><b>(Line {hotspot.line})</b>"
-
-        # Remove all HTML tags from the message to prevent parsing conflicts
-        cleaned_message = re.sub(r'<[^>]+>', '', hotspot.message)
-        # Also clean up any HTML entities that might remain
-        cleaned_message = html.unescape(cleaned_message)
 
         # Include security category if available
         category_info = ""
         if hotspot.security_category:
             formatted_category = format_security_category_name(hotspot.security_category)
-            category_info = f"<br/><font size=8 color='gray'>Category: {formatted_category}</font>"
+            category_info = (
+                "<br/><font size=8 color='gray'>Category: "
+                f"{escape_reportlab_text(formatted_category)}</font>"
+            )
 
-        rule_and_message = f"<b>{hotspot.rule_key }</b><br/>{cleaned_message}{category_info}"
+        display_rule = hotspot.rule_key or hotspot.rule
+        rule_and_message = (
+            f"<b>{escape_reportlab_text(display_rule)}</b><br/>"
+            f"{plain_text_to_reportlab(hotspot.message)}{category_info}"
+        )
 
         # Create vulnerability probability badge
-        prob_colors = {
-            "HIGH": colors.Color(0.8, 0.2, 0.2),    # Red
-            "MEDIUM": colors.Color(0.9, 0.6, 0.1),  # Orange  
-            "LOW": colors.Color(0.9, 0.9, 0.2)      # Yellow
-        }
         prob_color = prob_colors.get(hotspot.vulnerability_probability.upper(), colors.gray)
 
         risk_badge = CircleBadge(hotspot.vulnerability_probability[0].upper(),
                                  radius=8, color=prob_color)
-
-        # Create a custom style for file paths
-        file_path_style = ParagraphStyle(
-            "FilePathStyle",
-            parent=style_issue_meta,
-            fontSize=8,  # Slightly smaller for paths
-            wordWrap='LTR'  # Better word wrapping for long paths
-        )
 
         # Add main hotspot row
         table_data.append([
@@ -132,51 +147,7 @@ def create_hotspot_table(hotspots):
 
         # Add code snippet row if available
         if hasattr(hotspot, 'code_snippet') and hotspot.code_snippet and hotspot.code_snippet.strip(): # pylint: disable=line-too-long
-            # Create enhanced code style for better formatting
-            code_style = ParagraphStyle(
-                "CodeStyle", 
-                parent=style_normal,
-                fontName="Courier-Bold",  # Use bold Courier for better visibility
-                fontSize=9,  # Slightly larger font
-                textColor=colors.black,  # Black text for better readability
-                backColor=colors.Color(1.0, 0.95, 0.95),  # Light red background for security focus
-                leftIndent=15,
-                rightIndent=15,
-                spaceBefore=6,
-                spaceAfter=6,
-                borderWidth=1,
-                borderColor=colors.Color(0.9, 0.7, 0.7),  # Light red border
-                borderPadding=8
-            )
-
-            # Enhanced code formatting with indentation preservation
-            formatted_code = hotspot.code_snippet
-
-            # First, handle line breaks
-            formatted_code = formatted_code.replace('\n', '<br/>')
-
-            # Remove HTML span tags
-            formatted_code = re.sub(r"</?span[^>]*>", "", formatted_code)
-
-            # Preserve indentation by converting leading spaces to non-breaking spaces
-            # This regex finds spaces at the beginning of lines (after <br/> or at start)
-            formatted_code = re.sub(r'(^|\<br/\>)( +)',
-                                  lambda m: m.group(1) + '&nbsp;' * len(m.group(2)),
-                                  formatted_code)
-
-            # Also preserve spaces within the code (multiple spaces)
-            formatted_code = re.sub(r'  +', lambda m: '&nbsp;' * len(m.group(0)), formatted_code)
-
-            # Convert tabs to 4 non-breaking spaces
-            formatted_code = formatted_code.replace('\t', '&nbsp;&nbsp;&nbsp;&nbsp;')
-
-            # Highlight the problematic line (>>>) with red color
-            formatted_code = re.sub(r'(&gt;&gt;&gt;[^<]+)', r'<font color="red"><b>\1</b></font>',
-                                    formatted_code)
-
-            # Make line numbers slightly gray (but preserve their spacing)
-            formatted_code = re.sub(r'(\s*)(\d+)(:)', r'\1<font color="gray">\2</font>\3',
-                                    formatted_code)
+            formatted_code = format_code_snippet_for_reportlab(hotspot.code_snippet)
 
             code_paragraph = Paragraph(
                 f"<b><font color='darkred'>🔒 Security Hotspot Code:</font></b><br/>"
