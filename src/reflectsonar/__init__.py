@@ -9,7 +9,7 @@ Author: Ata Seren
 License: GPL-3.0
 """
 
-__version__ = "1.1.0"
+__version__ = "1.1.1"
 __author__ = "Ata Seren"
 __email__ = "ata.seren@hotmail.com"
 __license__ = "GPL-3.0"
