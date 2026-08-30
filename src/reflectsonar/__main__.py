@@ -2,6 +2,7 @@
 """
 Console script entry point for ReflectSonar
 """
+
 import sys
 from reflectsonar.main import main
 

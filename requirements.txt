@@ -1,9 +1,5 @@
-certifi==2025.4.26
-chardet==5.2.0
-charset-normalizer==3.4.2
-idna==3.10
-pillow==11.2.1
-reportlab==4.4.0
-requests==2.32.3
-urllib3==2.4.0
-pyyaml==6.0.3
+# Runtime dependencies. Keep these aligned with pyproject.toml.
+pillow>=10.0.0
+reportlab>=4.0.0
+requests>=2.28.0
+pyyaml>=6.0.0

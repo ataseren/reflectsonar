@@ -51,10 +51,15 @@ dev = [
     "black>=23.0.0",
     "flake8>=6.0.0",
     "pylint>=2.17.0",
-    "mypy>=1.0.0",
+    "mypy>=1.0.0,<1.15.0",
     "build>=0.10.0",
     "twine>=4.0.0",
+    "pypdf>=4.0.0,<5.0.0",
 ]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-ra"
 
 [tool.setuptools.packages.find]
 where = ["src"]
@@ -73,3 +78,5 @@ disable = ["C0103", "R0903"]
 python_version = "3.8"
 warn_return_any = true
 warn_unused_configs = true
+ignore_missing_imports = true
+no_implicit_optional = false

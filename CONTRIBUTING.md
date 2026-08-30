@@ -318,7 +318,7 @@ I am not following the conventions strictly, or even at all, but here are some s
 - [ ] Logo and styling appear correctly
 - [ ] Both Standard and MQR modes work
 - [ ] Configuration file loading works
-- [ ] Command-line arguments override config properly
+- [ ] Configuration-file values override command-line arguments as documented
 
 ### Test Data
 - Use projects with diverse issue types and severities

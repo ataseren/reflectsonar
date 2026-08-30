@@ -75,19 +75,26 @@ fi
 print_status "Pulling latest changes..."
 git pull origin main
 
+# Synchronize all version declarations before testing and building so release
+# artifacts contain the version being tagged.
+print_status "Updating version information..."
+python scripts/update_version.py "$VERSION"
+
+# Ask for release notes before creating artifacts or commits.
+if [ -f "CHANGELOG.md" ]; then
+    print_status "Please update CHANGELOG.md with release notes for version ${VERSION}"
+    read -p "Press Enter when ready to continue..."
+fi
+
 # Run tests if they exist
 if [ -f "requirements-dev.txt" ] || [ -d "tests" ]; then
     print_status "Running tests..."
-    if command -v pytest &> /dev/null; then
-        pytest
-    else
-        print_warning "pytest not found, skipping tests"
-    fi
+    python -m pytest
 fi
 
 # Build the binary
 print_status "Building binary..."
-python build_binary.py
+python scripts/build_binary.py
 
 if [ ! -f "dist/reflectsonar" ]; then
     print_error "Binary build failed - reflectsonar executable not found"
@@ -96,25 +103,10 @@ fi
 
 print_success "Binary built successfully"
 
-# Update version in files if needed
-print_status "Updating version information..."
-
-# Create or update VERSION file
-echo "$VERSION" > VERSION
-
-# If there's a setup.py or pyproject.toml, you might want to update version there too
-# This is a placeholder for version updates in other files
-
-# Create changelog entry if CHANGELOG.md exists
-if [ -f "CHANGELOG.md" ]; then
-    print_status "Please update CHANGELOG.md with release notes for version ${VERSION}"
-    read -p "Press Enter when ready to continue..."
-fi
-
 # Commit version changes
 if [ -n "$(git status --porcelain)" ]; then
     print_status "Committing version updates..."
-    git add .
+    git add VERSION pyproject.toml src/reflectsonar/__init__.py CHANGELOG.md
     git commit -m "Release version ${VERSION}"
 fi
 

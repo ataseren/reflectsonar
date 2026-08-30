@@ -1,65 +1,96 @@
-""" This module generates the cover page by
-    using the total and average metrics from SonarQube.
+"""This module generates the cover page by
+using the total and average metrics from SonarQube.
 """
+
 from datetime import datetime
 
 from reportlab.platypus import Paragraph, Spacer, Table, TableStyle
 from reportlab.lib.units import cm
 from reportlab.lib import colors
 
-from .utils import (style_title, style_subtitle, style_meta, badge, score_to_grade, # pylint: disable=relative-beyond-top-level
-    get_measure_value, style_footer) # pylint: disable=relative-beyond-top-level
+from .utils import (
+    style_title,
+    style_subtitle,
+    style_meta,
+    badge,
+    score_to_grade,  # pylint: disable=relative-beyond-top-level
+    get_measure_value,
+    style_footer,
+)  # pylint: disable=relative-beyond-top-level
+from .issues import get_issues_by_impact_category
+
 
 def issue_block(title, value, grade):
     """Creates an issue count block with grade badge"""
     content = [
         Paragraph(f"<b>{title}</b>", None),  # Will use style_normal from caller
-        Paragraph(f"<font size=14><b>{value}</b></font> Open Issues", None)
+        Paragraph(f"<font size=14><b>{value}</b></font> Open Issues", None),
     ]
-    return Table([[content, badge(grade)]], colWidths=[4*cm, 1*cm], style=TableStyle([
-        ("VALIGN", (0, 0), (-1, -1), "TOP"),
-        ("ALIGN", (1, 0), (1, 0), "RIGHT"),
-        ("LEFTPADDING", (0, 0), (-1, -1), 0),
-        ("RIGHTPADDING", (0, 0), (-1, -1), 0),
-        ("TOPPADDING", (0, 0), (-1, -1), 0),
-        ("BOTTOMPADDING", (0, 0), (-1, -1), 0),
-    ]))
+    return Table(
+        [[content, badge(grade)]],
+        colWidths=[4 * cm, 1 * cm],
+        style=TableStyle(
+            [
+                ("VALIGN", (0, 0), (-1, -1), "TOP"),
+                ("ALIGN", (1, 0), (1, 0), "RIGHT"),
+                ("LEFTPADDING", (0, 0), (-1, -1), 0),
+                ("RIGHTPADDING", (0, 0), (-1, -1), 0),
+                ("TOPPADDING", (0, 0), (-1, -1), 0),
+                ("BOTTOMPADDING", (0, 0), (-1, -1), 0),
+            ]
+        ),
+    )
+
 
 def project_data_block(title, value, grade):
     """Creates a project data block with grade badge"""
     content = [
         Paragraph(f"<b>{title}</b>", None),
-        Paragraph(f"<font size=14><b>{value}</b></font>", None)
+        Paragraph(f"<font size=14><b>{value}</b></font>", None),
     ]
-    return Table([[content, badge(grade)]], colWidths=[4*cm, 1*cm], style=TableStyle([
-        ("VALIGN", (0, 0), (-1, -1), "TOP"),
-        ("ALIGN", (1, 0), (1, 0), "RIGHT"),
-        ("LEFTPADDING", (0, 0), (-1, -1), 0),
-        ("RIGHTPADDING", (0, 0), (-1, -1), 0),
-        ("TOPPADDING", (0, 0), (-1, -1), 0),
-        ("BOTTOMPADDING", (0, 0), (-1, -1), 0),
-    ]))
+    return Table(
+        [[content, badge(grade)]],
+        colWidths=[4 * cm, 1 * cm],
+        style=TableStyle(
+            [
+                ("VALIGN", (0, 0), (-1, -1), "TOP"),
+                ("ALIGN", (1, 0), (1, 0), "RIGHT"),
+                ("LEFTPADDING", (0, 0), (-1, -1), 0),
+                ("RIGHTPADDING", (0, 0), (-1, -1), 0),
+                ("TOPPADDING", (0, 0), (-1, -1), 0),
+                ("BOTTOMPADDING", (0, 0), (-1, -1), 0),
+            ]
+        ),
+    )
+
 
 def hotspot_block(title, value):
     """Creates a security hotspot block"""
     content = [
         Paragraph(f"<b>{title}</b>", None),
-        Paragraph(f"<font size=14><b>{value}</b></font> Open Issues", None)
+        Paragraph(f"<font size=14><b>{value}</b></font> Open Issues", None),
     ]
-    return Table([[content]], colWidths=[4*cm, 1*cm], style=TableStyle([
-        ("VALIGN", (0, 0), (-1, -1), "TOP"),
-        ("ALIGN", (1, 0), (1, 0), "RIGHT"),
-        ("LEFTPADDING", (0, 0), (-1, -1), 0),
-        ("RIGHTPADDING", (0, 0), (-1, -1), 0),
-        ("TOPPADDING", (0, 0), (-1, -1), 0),
-        ("BOTTOMPADDING", (0, 0), (-1, -1), 0),
-    ]))
+    return Table(
+        [[content]],
+        colWidths=[4 * cm, 1 * cm],
+        style=TableStyle(
+            [
+                ("VALIGN", (0, 0), (-1, -1), "TOP"),
+                ("ALIGN", (1, 0), (1, 0), "RIGHT"),
+                ("LEFTPADDING", (0, 0), (-1, -1), 0),
+                ("RIGHTPADDING", (0, 0), (-1, -1), 0),
+                ("TOPPADDING", (0, 0), (-1, -1), 0),
+                ("BOTTOMPADDING", (0, 0), (-1, -1), 0),
+            ]
+        ),
+    )
+
 
 def generate_cover_page(report, elements):
     """Generates the cover page elements"""
 
     # Add space for the logo at the top
-    elements.append(Spacer(1, 0.5*cm))
+    elements.append(Spacer(1, 0.5 * cm))
 
     # Title centered on page (logo will be added via header function)
     title = Paragraph("SonarQube SAST Report", style_title)
@@ -67,13 +98,13 @@ def generate_cover_page(report, elements):
 
     elements.append(title)
     elements.append(subtitle)
-    elements.append(Spacer(1, 1*cm))
+    elements.append(Spacer(1, 1 * cm))
 
     # Project metadata
     now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     elements.append(Paragraph(f"<b>Date:</b> {now}", style_meta))
     elements.append(Paragraph(f"<b>SonarQube Project Name:</b> {report.project.name}", style_meta))
-    elements.append(Spacer(1, 1*cm))
+    elements.append(Spacer(1, 1 * cm))
 
     # Extract metrics
     coverage = float(get_measure_value(report.measures, "coverage", 0.0))
@@ -82,68 +113,96 @@ def generate_cover_page(report, elements):
     dup_lines = int(get_measure_value(report.measures, "lines", 0))
     hotspot_count = len(report.hotspots)
 
-    security_issues_count = int(get_measure_value(report.measures,
-                                "software_quality_security_issues", 0))
-    reliability_issues_count = int(get_measure_value(report.measures,
-                                "software_quality_reliability_issues", 0))
-    maintainability_issues_count = int(get_measure_value(report.measures,
-                                "software_quality_maintainability_issues", 0))
+    security_issues_count = len(get_issues_by_impact_category(report.issues, "SECURITY"))
+    reliability_issues_count = len(get_issues_by_impact_category(report.issues, "RELIABILITY"))
+    maintainability_issues_count = len(
+        get_issues_by_impact_category(report.issues, "MAINTAINABILITY")
+    )
+    accepted_issues_count = int(get_measure_value(report.measures, "accepted_issues", 0))
 
-    security_rating = score_to_grade(get_measure_value(report.measures,
-                                    "software_quality_security_rating", 5.0))
-    reliability_rating = score_to_grade(get_measure_value(report.measures,
-                                        "software_quality_reliability_rating", 5.0))
-    maintainability_rating = score_to_grade(get_measure_value(report.measures,
-                                            "software_quality_maintainability_rating", 5.0))
+    if report.mode_setting:
+        security_rating_metric = "software_quality_security_rating"
+        reliability_rating_metric = "software_quality_reliability_rating"
+        maintainability_rating_metric = "software_quality_maintainability_rating"
+    else:
+        security_rating_metric = "security_rating"
+        reliability_rating_metric = "reliability_rating"
+        maintainability_rating_metric = "sqale_rating"
+
+    security_rating = score_to_grade(
+        get_measure_value(report.measures, security_rating_metric, 5.0)
+    )
+    reliability_rating = score_to_grade(
+        get_measure_value(report.measures, reliability_rating_metric, 5.0)
+    )
+    maintainability_rating = score_to_grade(
+        get_measure_value(report.measures, maintainability_rating_metric, 5.0)
+    )
 
     # Dashboard data
     dashboard_data = [
         [  # Row 1
             issue_block("Security", str(security_issues_count), security_rating),
             issue_block("Reliability", str(reliability_issues_count), reliability_rating),
-            issue_block("Maintainability", str(maintainability_issues_count)
-                                                , maintainability_rating)
+            issue_block(
+                "Maintainability", str(maintainability_issues_count), maintainability_rating
+            ),
         ],
         [  # Row 2
-            project_data_block("Accepted Issues", "0<br/><font size=6>Valid issues that were not fixed</font>", "C"), # pylint: disable=line-too-long
-            project_data_block("Coverage", f"{coverage}%<br/><font size=8>on {cover_lines} lines to cover</font>", "B"), # pylint: disable=line-too-long
-            project_data_block("Duplications", f"{duplication}%<br/><font size=8>on {dup_lines} lines</font>", "D") # pylint: disable=line-too-long
+            project_data_block(
+                "Accepted Issues",
+                f"{accepted_issues_count}<br/><font size=6>Valid issues that were not fixed</font>",
+                "C",
+            ),  # pylint: disable=line-too-long
+            project_data_block(
+                "Coverage",
+                f"{coverage}%<br/><font size=8>on {cover_lines} lines to cover</font>",
+                "B",
+            ),  # pylint: disable=line-too-long
+            project_data_block(
+                "Duplications", f"{duplication}%<br/><font size=8>on {dup_lines} lines</font>", "D"
+            ),  # pylint: disable=line-too-long
         ],
         [  # Row 3
             hotspot_block("Security Hotspots", f"<font size=14><b>{hotspot_count}</b></font>"),
-            Spacer(0, 0), Spacer(0, 0)
-        ]
+            Spacer(0, 0),
+            Spacer(0, 0),
+        ],
     ]
 
     # Create dashboard table
     flattened_dashboard = [list(row) for row in dashboard_data]
-    t = Table(flattened_dashboard, colWidths=[6*cm]*3)
-    t.setStyle(TableStyle([
-        ("BACKGROUND", (0, 0), (-1, -1), colors.whitesmoke),
-        ("INNERGRID", (0, 0), (-1, -1), 0, colors.white),
-        ("BOX", (0, 0), (-1, -1), 0.5, colors.lightgrey),
-        ("VALIGN", (0, 0), (-1, -1), "TOP"),
-        ("LEFTPADDING", (0, 0), (-1, -1), 10),
-        ("RIGHTPADDING", (0, 0), (-1, -1), 10),
-        ("TOPPADDING", (0, 0), (-1, -1), 8),
-        ("BOTTOMPADDING", (0, 0), (-1, -1), 8),
-        ("SPAN", (0, 2), (2, 2)),
-    ]))
+    t = Table(flattened_dashboard, colWidths=[(17 * cm) / 3] * 3)
+    t.setStyle(
+        TableStyle(
+            [
+                ("BACKGROUND", (0, 0), (-1, -1), colors.whitesmoke),
+                ("INNERGRID", (0, 0), (-1, -1), 0, colors.white),
+                ("BOX", (0, 0), (-1, -1), 0.5, colors.lightgrey),
+                ("VALIGN", (0, 0), (-1, -1), "TOP"),
+                ("LEFTPADDING", (0, 0), (-1, -1), 10),
+                ("RIGHTPADDING", (0, 0), (-1, -1), 10),
+                ("TOPPADDING", (0, 0), (-1, -1), 8),
+                ("BOTTOMPADDING", (0, 0), (-1, -1), 8),
+                ("SPAN", (0, 2), (2, 2)),
+            ]
+        )
+    )
     elements.append(t)
 
     exclusions_note = getattr(report, "exclusions_note", None)
     if exclusions_note:
-        elements.append(Spacer(1, 0.4*cm))
+        elements.append(Spacer(1, 0.4 * cm))
         elements.append(Paragraph(f"<i>{exclusions_note}</i>", style_meta))
-        elements.append(Spacer(1, 1.6*cm))
+        elements.append(Spacer(1, 1.6 * cm))
     else:
-        elements.append(Spacer(1, 2*cm))
+        elements.append(Spacer(1, 2 * cm))
 
     # Footer note
     note = (
-        "<i>This report is generated by ReflectSonar, an open-source tool to add the report generation mechanism to SonarQube Community and Developer Edition. </i>" # pylint: disable=line-too-long
+        "<i>This report is generated by ReflectSonar, an open-source tool to add the report generation mechanism to SonarQube Community and Developer Edition. </i>"  # pylint: disable=line-too-long
         "<i>It is not affiliated with Sonar. </i>"
-        "<i>The report is generated based on SonarQube instance that its information is provided. All data is fetched from SonarQube API. </i>" # pylint: disable=line-too-long
+        "<i>The report is generated based on SonarQube instance that its information is provided. All data is fetched from SonarQube API. </i>"  # pylint: disable=line-too-long
         "<i>ReflectSonar just provides a way to generate the report. </i>"
     )
     elements.append(Paragraph(note, style_footer))

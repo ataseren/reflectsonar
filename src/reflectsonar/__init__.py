@@ -2,7 +2,7 @@
 ReflectSonar - PDF Report Generator for SonarQube Analysis
 
 ReflectSonar is a Python tool for generating PDF reports from SonarQube analysis data.
-It reads data via the SonarQube API and generates comprehensive PDF reports for 
+It reads data via the SonarQube API and generates comprehensive PDF reports for
 general metrics, issues, and security hotspots.
 
 Author: Ata Seren
