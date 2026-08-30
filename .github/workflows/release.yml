@@ -50,12 +50,12 @@ jobs:
           # macOS arm64 (Apple Silicon)
           - os: macos
             arch: arm64
-            runner: macos-latest
+            runner: macos-15
             py: '3.12'
           # macOS x64 (Intel)
           - os: macos
             arch: x64
-            runner: macos-latest
+            runner: macos-15-intel
             py: '3.12'
 
     steps:
@@ -99,12 +99,7 @@ jobs:
         env:
           RS_OS: ${{ matrix.os }}
           RS_ARCH: ${{ matrix.arch }}
-        run: |
-          # For macOS, optionally target specific arch/universal
-          if [[ "${{ matrix.os }}" == "macos" ]]; then
-            export PYINSTALLER_TARGET_ARCH="${{ matrix.arch }}"   # read this in your script if you want
-          fi
-          python scripts/build_binary.py
+        run: python scripts/build_binary.py
 
       - name: Create release archive
         shell: bash
