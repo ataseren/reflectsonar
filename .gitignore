@@ -52,6 +52,7 @@ cover/
 # Environments
 .env
 .venv
+.uv-cache/
 env/
 venv/
 ENV/

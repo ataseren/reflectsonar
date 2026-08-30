@@ -3,41 +3,43 @@ This module generates hotspot pages of the report
 by using data from SonarQube.
 """
 
-from reportlab.platypus import (
-     Paragraph, Spacer, Table, TableStyle, KeepTogether
-)
+from typing import Dict
+
+from reportlab.platypus import Paragraph, Spacer, Table, TableStyle, KeepTogether
 from reportlab.lib.units import cm
 from reportlab.lib.styles import ParagraphStyle
 from reportlab.lib import colors
 
-from .utils import ( # pylint: disable=relative-beyond-top-level
-    style_section_title, style_issue_meta, style_normal, # pylint: disable=relative-beyond-top-level
-    CircleBadge, BookmarkFlowable, escape_reportlab_text, # pylint: disable=relative-beyond-top-level
-    plain_text_to_reportlab, format_code_snippet_for_reportlab # pylint: disable=relative-beyond-top-level
+from .utils import (  # pylint: disable=relative-beyond-top-level
+    style_section_title,
+    style_issue_meta,
+    style_normal,  # pylint: disable=relative-beyond-top-level
+    CircleBadge,
+    BookmarkFlowable,
+    escape_reportlab_text,  # pylint: disable=relative-beyond-top-level
+    plain_text_to_reportlab,
+    split_code_snippet_for_reportlab,  # pylint: disable=relative-beyond-top-level
 )
 
+
 def create_hotspot_table(hotspots):
-    """ Creates a table displaying security hotspots
-        with vulnerability probability, rule, and message
+    """Creates a table displaying security hotspots
+    with vulnerability probability, rule, and message
     """
     if not hotspots:
         # Create a list with spacer and paragraph for better formatting
         content = [
-            Spacer(1, 5*cm),
+            Spacer(1, 5 * cm),
             Paragraph(
-                "<i>No security hotspots found. This indicates good security practices in the codebase.</i>", # pylint: disable=line-too-long
-                style_normal
-            )
+                "<i>No security hotspots found. This indicates good security practices in the codebase.</i>",  # pylint: disable=line-too-long
+                style_normal,
+            ),
         ]
         return KeepTogether(content)
 
     # Sort hotspots by vulnerability probability (highest risk first)
     def get_hotspot_priority(hotspot):
-        probability_order = {
-            "HIGH": 1,
-            "MEDIUM": 2,
-            "LOW": 3
-        }
+        probability_order = {"HIGH": 1, "MEDIUM": 2, "LOW": 3}
         return probability_order.get(hotspot.vulnerability_probability.upper(), 4)
 
     sorted_hotspots = sorted(hotspots, key=get_hotspot_priority)
@@ -45,24 +47,27 @@ def create_hotspot_table(hotspots):
     table_data = []
 
     # Add header
-    header_style = ParagraphStyle("Header", parent=style_normal,
-                                  fontName="Helvetica-Bold", fontSize=10)
-    table_data.append([
-        Paragraph("Risk", header_style),
-        Paragraph("File Path", header_style),
-        Paragraph("Rule & Message", header_style)
-    ])
+    header_style = ParagraphStyle(
+        "Header", parent=style_normal, fontName="Helvetica-Bold", fontSize=10
+    )
+    table_data.append(
+        [
+            Paragraph("Risk", header_style),
+            Paragraph("File Path", header_style),
+            Paragraph("Rule & Message", header_style),
+        ]
+    )
 
     prob_colors = {
-        "HIGH": colors.Color(0.8, 0.2, 0.2),    # Red
+        "HIGH": colors.Color(0.8, 0.2, 0.2),  # Red
         "MEDIUM": colors.Color(0.9, 0.6, 0.1),  # Orange
-        "LOW": colors.Color(0.9, 0.9, 0.2)      # Yellow
+        "LOW": colors.Color(0.9, 0.9, 0.2),  # Yellow
     }
     file_path_style = ParagraphStyle(
         "FilePathStyle",
         parent=style_issue_meta,
         fontSize=8,  # Slightly smaller for paths
-        wordWrap='LTR'  # Better word wrapping for long paths
+        wordWrap="LTR",  # Better word wrapping for long paths
     )
     code_style = ParagraphStyle(
         "CodeStyle",
@@ -77,7 +82,7 @@ def create_hotspot_table(hotspots):
         spaceAfter=6,
         borderWidth=1,
         borderColor=colors.Color(0.9, 0.7, 0.7),  # Light red border
-        borderPadding=8
+        borderPadding=8,
     )
 
     for hotspot in sorted_hotspots:
@@ -90,7 +95,7 @@ def create_hotspot_table(hotspots):
         # Smart path formatting - break long paths for better readability
         if len(full_path) > 40:
             # Find good break points (after / or before long segments)
-            parts = full_path.split('/')
+            parts = full_path.split("/")
             if len(parts) > 1:
                 # Group parts to keep lines under ~40 chars when possible
                 formatted_parts = []
@@ -135,33 +140,48 @@ def create_hotspot_table(hotspots):
         # Create vulnerability probability badge
         prob_color = prob_colors.get(hotspot.vulnerability_probability.upper(), colors.gray)
 
-        risk_badge = CircleBadge(hotspot.vulnerability_probability[0].upper(),
-                                 radius=8, color=prob_color)
+        risk_badge = CircleBadge(
+            hotspot.vulnerability_probability[0].upper(), radius=8, color=prob_color
+        )
 
         # Add main hotspot row
-        table_data.append([
-            risk_badge,
-            Paragraph(filename, file_path_style),
-            Paragraph(rule_and_message, style_normal)
-        ])
+        table_data.append(
+            [
+                risk_badge,
+                Paragraph(filename, file_path_style),
+                Paragraph(rule_and_message, style_normal),
+            ]
+        )
 
         # Add code snippet row if available
-        if hasattr(hotspot, 'code_snippet') and hotspot.code_snippet and hotspot.code_snippet.strip(): # pylint: disable=line-too-long
-            formatted_code = format_code_snippet_for_reportlab(hotspot.code_snippet)
+        if (
+            hasattr(hotspot, "code_snippet")
+            and hotspot.code_snippet
+            and hotspot.code_snippet.strip()
+        ):  # pylint: disable=line-too-long
+            snippet_chunks = split_code_snippet_for_reportlab(hotspot.code_snippet)
 
-            code_paragraph = Paragraph(
-                f"<b><font color='darkred'>🔒 Security Hotspot Code:</font></b><br/>"
-                f"<font name='Courier' size='8'>{formatted_code}</font>",
-                code_style
-            )
+            for chunk_index, formatted_code in enumerate(snippet_chunks):
+                label = (
+                    "Security Hotspot Code:"
+                    if chunk_index == 0
+                    else "Security Hotspot Code (continued):"
+                )
+                code_paragraph = Paragraph(
+                    f"<b><font color='darkred'>🔒 {label}</font></b><br/>"
+                    f"<font name='Courier' size='8'>{formatted_code}</font>",
+                    code_style,
+                )
 
-            table_data.append([
-                code_paragraph,  # Code paragraph spans all columns
-                "",  # Placeholder for span
-                ""   # Placeholder for span  
-            ])
+                table_data.append(
+                    [
+                        code_paragraph,  # Code paragraph spans all columns
+                        "",  # Placeholder for span
+                        "",  # Placeholder for span
+                    ]
+                )
 
-    table = Table(table_data, colWidths=[2*cm, 5*cm, 11*cm])
+    table = Table(table_data, colWidths=[1.8 * cm, 4.7 * cm, 10.5 * cm], repeatRows=1)
 
     # Build dynamic table styling
     table_style = [
@@ -170,16 +190,13 @@ def create_hotspot_table(hotspots):
         ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
         ("FONTSIZE", (0, 0), (-1, 0), 10),
         ("ALIGN", (0, 0), (-1, 0), "CENTER"),
-
         # General table styling
         ("FONTNAME", (0, 1), (-1, -1), "Helvetica"),
         ("FONTSIZE", (0, 1), (-1, -1), 9),
         ("ALIGN", (0, 1), (0, -1), "CENTER"),  # Risk column centered
         ("VALIGN", (0, 0), (-1, -1), "TOP"),
-
         # Grid lines
         ("GRID", (0, 0), (-1, -1), 0.5, colors.grey),
-
         # Padding
         ("LEFTPADDING", (0, 0), (-1, -1), 6),
         ("RIGHTPADDING", (0, 0), (-1, -1), 6),
@@ -189,11 +206,11 @@ def create_hotspot_table(hotspots):
 
     # Apply enhanced styling for code snippet rows
     for i, row in enumerate(table_data[1:], start=1):  # Skip header
-        if (isinstance(row[1], str) and row[1] == "" and
-            isinstance(row[2], str) and row[2] == ""):
+        if isinstance(row[1], str) and row[1] == "" and isinstance(row[2], str) and row[2] == "":
             # This is a code snippet row - first column has content, others are empty
-            table_style.append(("BACKGROUND", (0, i), (-1, i),
-                                colors.Color(1.0, 0.98, 0.98)))  # Very light red
+            table_style.append(
+                ("BACKGROUND", (0, i), (-1, i), colors.Color(1.0, 0.98, 0.98))
+            )  # Very light red
             table_style.append(("SPAN", (0, i), (2, i)))  # Span from column 0 to 2
             table_style.append(("LEFTPADDING", (0, i), (0, i), 10))
             table_style.append(("RIGHTPADDING", (0, i), (0, i), 10))
@@ -206,13 +223,14 @@ def create_hotspot_table(hotspots):
 
     return table
 
+
 def create_hotspot_section(title: str, hotspots, elements):
     """Creates the security hotspot section of the report"""
     elements.append(Paragraph(title, style_section_title))
 
     # Add hotspot count summary
     if hotspots:
-        risk_counts = {}
+        risk_counts: Dict[str, int] = {}
 
         # Count vulnerability probabilities
         for hotspot in hotspots:
@@ -233,9 +251,10 @@ def create_hotspot_section(title: str, hotspots, elements):
     else:
         elements.append(Paragraph("<b>Total: 0 hotspots</b>", style_issue_meta))
 
-    elements.append(Spacer(1, 0.5*cm))
+    elements.append(Spacer(1, 0.5 * cm))
     elements.append(create_hotspot_table(hotspots))
-    elements.append(Spacer(1, 1*cm))
+    elements.append(Spacer(1, 1 * cm))
+
 
 def categorize_hotspots_by_security_category(hotspots):
     """Returns a dictionary categorizing hotspots by their security category"""
@@ -252,6 +271,7 @@ def categorize_hotspots_by_security_category(hotspots):
             uncategorized.append(hotspot)
 
     return categories, uncategorized
+
 
 def format_security_category_name(category_key: str) -> str:
     """Maps SonarQube security category keys to human-readable names"""
@@ -272,7 +292,7 @@ def format_security_category_name(category_key: str) -> str:
         "http-response-splitting": "HTTP Response Splitting",
         "open-redirect": "Open Redirect",
         "auth": "Authentication",
-        "weak-cryptography": "Weak Cryptography", 
+        "weak-cryptography": "Weak Cryptography",
         "insecure-conf": "Insecure Configuration",
         "file-manipulation": "File Manipulation",
         "encrypt-data": "Encrypt Data",
@@ -282,8 +302,10 @@ def format_security_category_name(category_key: str) -> str:
     }
 
     # Return mapped name or fallback to formatted version
-    return category_mapping.get(category_key,
-                                category_key.replace('-', ' ').replace('_', ' ').title())
+    return category_mapping.get(
+        category_key, category_key.replace("-", " ").replace("_", " ").title()
+    )
+
 
 def generate_security_hotspots_page(report, elements):
     """Generates the security hotspots section of the report"""
@@ -316,7 +338,7 @@ def generate_security_hotspots_page(report, elements):
         summary_text = f"<b>Total: {total_hotspots} hotspots</b> ({', '.join(summary_parts)})"
         elements.append(Paragraph(summary_text, style_issue_meta))
 
-    elements.append(Spacer(1, 0.5*cm))
+    elements.append(Spacer(1, 0.5 * cm))
 
     # Display categorized hotspots
     if categories:
@@ -327,24 +349,24 @@ def generate_security_hotspots_page(report, elements):
             category_hotspots = categories[category]
 
             # Create category subsection
-            category_title = f"{format_security_category_name(category)} ({len(category_hotspots)} hotspots)" # pylint: disable=line-too-long
+            category_title = f"{format_security_category_name(category)} ({len(category_hotspots)} hotspots)"  # pylint: disable=line-too-long
 
             # Add sub-bookmark for this category (level 1 - indented under Security Hotspots)
             elements.append(BookmarkFlowable(f"{format_security_category_name(category)}", 1))
 
             # Create subsection style
             category_style = ParagraphStyle(
-                "CategoryTitle", 
+                "CategoryTitle",
                 parent=style_section_title,
                 fontSize=14,
                 spaceAfter=8,
                 spaceBefore=16,
-                textColor=colors.Color(0.2, 0.2, 0.6)  # Dark blue
+                textColor=colors.Color(0.2, 0.2, 0.6),  # Dark blue
             )
 
             elements.append(Paragraph(category_title, category_style))
             elements.append(create_hotspot_table(category_hotspots))
-            elements.append(Spacer(1, 0.5*cm))
+            elements.append(Spacer(1, 0.5 * cm))
 
     # Display uncategorized hotspots if any
     if uncategorized:
@@ -352,15 +374,16 @@ def generate_security_hotspots_page(report, elements):
         elements.append(BookmarkFlowable("Other Security Issues", 1))
 
         category_style = ParagraphStyle(
-            "CategoryTitle", 
+            "CategoryTitle",
             parent=style_section_title,
             fontSize=14,
             spaceAfter=8,
             spaceBefore=16,
-            textColor=colors.Color(0.6, 0.2, 0.2)  # Dark red
+            textColor=colors.Color(0.6, 0.2, 0.2),  # Dark red
         )
 
-        elements.append(Paragraph(f"Other Security Hotspots ({len(uncategorized)} hotspots)",
-                                  category_style))
+        elements.append(
+            Paragraph(f"Other Security Hotspots ({len(uncategorized)} hotspots)", category_style)
+        )
         elements.append(create_hotspot_table(uncategorized))
-        elements.append(Spacer(1, 0.5*cm))
+        elements.append(Spacer(1, 0.5 * cm))

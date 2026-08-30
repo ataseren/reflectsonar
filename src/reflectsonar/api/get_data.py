@@ -1,21 +1,55 @@
 """
 This module is used to fetch data from SonarQube API
 """
+
 import traceback
 import threading
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import Dict, List, Optional
+from urllib.parse import quote, urlencode
 import requests
 
-from ..data.models import (SonarQubeProject, SonarQubeIssue, SonarQubeMeasure, # pylint: disable=import-error
-                         SonarQubeHotspot, ReportData, SonarQubeRule)  # pylint: disable=import-error
+from ..data.models import (
+    SonarQubeProject,
+    SonarQubeIssue,
+    SonarQubeMeasure,  # pylint: disable=import-error
+    SonarQubeHotspot,
+    ReportData,
+    SonarQubeRule,
+)  # pylint: disable=import-error
 
 from ..report.utils import log, log_progress, finish_progress, print_message
 
 PAGE_SIZE = 500
 API_RESULT_LIMIT = 10000
 ISSUE_IMPACT_QUALITIES = ("SECURITY", "RELIABILITY", "MAINTAINABILITY")
-SNIPPET_FETCH_WORKERS = 8 # Tune for server load vs speed - SonarQube can handle around 8 concurrent requests without significant performance degradation in our testing
+SNIPPET_FETCH_WORKERS = 8  # Tune for server load vs speed - SonarQube can handle around 8 concurrent requests without significant performance degradation in our testing
+
+COMMON_METRIC_KEYS = (
+    "accepted_issues",
+    "coverage",
+    "duplicated_lines_density",
+    "lines",
+    "lines_to_cover",
+    "security_hotspots",
+)
+MQR_METRIC_KEYS = (
+    "software_quality_security_rating",
+    "software_quality_reliability_rating",
+    "software_quality_maintainability_rating",
+    "software_quality_maintainability_issues",
+    "software_quality_security_issues",
+    "software_quality_reliability_issues",
+)
+STANDARD_METRIC_KEYS = (
+    "security_rating",
+    "reliability_rating",
+    "sqale_rating",
+    "vulnerabilities",
+    "bugs",
+    "code_smells",
+)
+
 
 # Helpers
 def create_session(token: str) -> requests.Session:
@@ -23,6 +57,37 @@ def create_session(token: str) -> requests.Session:
     session = requests.Session()
     session.auth = (token, "")
     return session
+
+
+def build_api_url(base_url: str, path: str, params: Optional[Dict] = None) -> str:
+    """Build a SonarQube API URL with safely encoded query parameters."""
+    url = f"{base_url.rstrip('/')}/{path.lstrip('/')}"
+    if params:
+        url = f"{url}?{urlencode(params)}"
+    return url
+
+
+def get_mode_setting(settings_data: Dict, default: bool = False) -> bool:
+    """Read the MQR mode flag from the SonarQube settings response."""
+    setting_key = "sonar.multi-quality-mode.enabled"
+
+    for setting in settings_data.get("settings", []):
+        if setting.get("key") == setting_key:
+            return str(setting.get("value", str(default))).lower() == "true"
+
+    # Retain compatibility with non-standard proxies that flatten settings.
+    legacy_setting = settings_data.get(setting_key, {})
+    if isinstance(legacy_setting, dict) and "value" in legacy_setting:
+        return str(legacy_setting["value"]).lower() == "true"
+
+    return default
+
+
+def get_metric_keys(mqr_mode: bool) -> List[str]:
+    """Return metric keys appropriate for the active SonarQube mode."""
+    mode_keys = MQR_METRIC_KEYS if mqr_mode else STANDARD_METRIC_KEYS
+    return list(mode_keys + COMMON_METRIC_KEYS)
+
 
 def get_json(url: str, token: str, session: requests.Session = None) -> Dict:
     """Helper function to perform GET request and return JSON response"""
@@ -35,13 +100,23 @@ def get_json(url: str, token: str, session: requests.Session = None) -> Dict:
     try:
         response = client.get(url, timeout=30)
         response.raise_for_status()
-        return response.json()
+        payload = response.json()
+        if not isinstance(payload, dict):
+            raise ValueError(f"Expected a JSON object from {url}")
+        return payload
     finally:
         if created_session is not None:
             created_session.close()
 
-def fetch(name: str, url: str, token: str, verbose: bool,
-          inline: bool = False, session: requests.Session = None) -> Dict:
+
+def fetch(
+    name: str,
+    url: str,
+    token: str,
+    verbose: bool,
+    inline: bool = False,
+    session: requests.Session = None,
+) -> Dict:
     """Fetches data from SonarQube API by using get_json and utils.log"""
     if inline:
         log_progress(verbose, f"Fetching {name}...")
@@ -49,15 +124,19 @@ def fetch(name: str, url: str, token: str, verbose: bool,
         log(verbose, f"Fetching {name}...")
     return get_json(url, token, session=session)
 
-def fetch_paginated_items(name: str, item_key: str, url_template: str,
-                          token: str, verbose: bool = False,
-                          session: requests.Session = None) -> Dict:
+
+def fetch_paginated_items(
+    name: str,
+    item_key: str,
+    url_template: str,
+    token: str,
+    verbose: bool = False,
+    session: requests.Session = None,
+) -> Dict:
     """Fetch every page for a paginated SonarQube API endpoint."""
     all_items = []
     page = 1
     total = 0
-    hit_api_limit = False
-
     while True:
         page_url = url_template.format(page_size=PAGE_SIZE, page=page)
 
@@ -71,8 +150,8 @@ def fetch_paginated_items(name: str, item_key: str, url_template: str,
                 session=session,
             )
         except requests.RequestException as e:
-            print_message(f"ERROR: Failed to fetch {name} page {page}: {e}")
-            break
+            finish_progress()
+            raise RuntimeError(f"Failed to fetch {name} page {page}: {e}") from e
 
         page_items = page_data.get(item_key, [])
         all_items.extend(page_items)
@@ -81,7 +160,12 @@ def fetch_paginated_items(name: str, item_key: str, url_template: str,
         total = paging.get("total", len(all_items))
 
         if len(all_items) >= API_RESULT_LIMIT:
-            hit_api_limit = True
+            if total > len(all_items):
+                finish_progress()
+                raise RuntimeError(
+                    f"SonarQube returned more than {API_RESULT_LIMIT} results for {name}; "
+                    "refusing to generate an incomplete report"
+                )
             break
 
         if not page_items or len(all_items) >= total:
@@ -90,8 +174,6 @@ def fetch_paginated_items(name: str, item_key: str, url_template: str,
         page += 1
 
     finish_progress()
-    if hit_api_limit:
-        log(verbose, f"Reached SonarQube API result limit ({API_RESULT_LIMIT}) for {name}; stopping pagination early.") # pylint: disable=line-too-long
 
     return {
         item_key: all_items,
@@ -99,13 +181,18 @@ def fetch_paginated_items(name: str, item_key: str, url_template: str,
             "pageIndex": 1,
             "pageSize": len(all_items),
             "total": max(total, len(all_items)),
-        }
+        },
     }
 
+
 # Getters
-def get_rules(base_url: str, token: str, rule_keys: List[str],
-              verbose: bool = False,
-              session: requests.Session = None) -> Dict[str, 'SonarQubeRule']:
+def get_rules(
+    base_url: str,
+    token: str,
+    rule_keys: List[str],
+    verbose: bool = False,
+    session: requests.Session = None,
+) -> Dict[str, "SonarQubeRule"]:
     """Fetches rule descriptions from SonarQube API for given rule keys"""
     if not rule_keys:
         return {}
@@ -116,7 +203,7 @@ def get_rules(base_url: str, token: str, rule_keys: List[str],
         total_rules = len(rule_keys)
 
         for index, rule_key in enumerate(rule_keys, start=1):
-            rule_url = f"{base_url}/api/rules/show?key={rule_key}"
+            rule_url = build_api_url(base_url, "/api/rules/show", {"key": rule_key})
             response = fetch(
                 f"rule description {index}/{total_rules}: {rule_key}",
                 rule_url,
@@ -126,8 +213,8 @@ def get_rules(base_url: str, token: str, rule_keys: List[str],
                 session=session,
             )
 
-            if 'rule' in response:
-                rules[rule_key] = SonarQubeRule.from_dict(response['rule'])
+            if "rule" in response:
+                rules[rule_key] = SonarQubeRule.from_dict(response["rule"])
 
         finish_progress()
         log(verbose, f"   ✅ Fetched {len(rules)} rule descriptions")
@@ -135,19 +222,24 @@ def get_rules(base_url: str, token: str, rule_keys: List[str],
 
     except requests.RequestException as e:
         finish_progress()
-        print_message(f"ERROR: Error fetching rules: {e}")
-        return {}
+        raise RuntimeError(f"Failed to fetch rule descriptions: {e}") from e
+
 
 # Function to fetch code snippet for a specific issue or hotspot
-def get_code_snippet(base_url: str, token: str, component: str, line: int,
-                     session: requests.Session = None) -> str:
+def get_code_snippet(
+    base_url: str, token: str, component: str, line: int, session: requests.Session = None
+) -> str:
     """Fetches code snippet for a specific issue or hotspot from SonarQube API"""
     try:
         # Calculate line range (line ± context_lines)
         from_line = max(1, line - 3)
         to_line = line + 3
 
-        sources_url = f"{base_url}/api/sources/show?key={component}&from={from_line}&to={to_line}"
+        sources_url = build_api_url(
+            base_url,
+            "/api/sources/show",
+            {"key": component, "from": from_line, "to": to_line},
+        )
 
         try:
             response = fetch("code snippets...", sources_url, token, False, session=session)
@@ -174,12 +266,14 @@ def get_code_snippet(base_url: str, token: str, component: str, line: int,
         result = "\n".join(snippet_lines)
         return result
     except requests.RequestException as e:
-        print_message(f"ERROR: Error fetching code snippet for {component}:{line}: {e}")  # Debug log
+        print_message(
+            f"ERROR: Error fetching code snippet for {component}:{line}: {e}"
+        )  # Debug log
         traceback.print_exc()
         return ""
 
-def populate_code_snippets(items, base_url: str, token: str,
-                           item_type: str, verbose: bool = False):
+
+def populate_code_snippets(items, base_url: str, token: str, item_type: str, verbose: bool = False):
     """Fetch code snippets concurrently for issues or hotspots with line numbers."""
     items_with_lines = []
 
@@ -230,8 +324,7 @@ def populate_code_snippets(items, base_url: str, token: str,
     try:
         with ThreadPoolExecutor(max_workers=worker_count) as executor:
             future_map = {
-                executor.submit(fetch_item_snippet, item): item
-                for item in items_with_lines
+                executor.submit(fetch_item_snippet, item): item for item in items_with_lines
             }
 
             completed = 0
@@ -247,15 +340,37 @@ def populate_code_snippets(items, base_url: str, token: str,
         for created_session in created_sessions:
             created_session.close()
 
-def fetch_all_issues(base_url: str, token: str, project_key: str,
-                     verbose: bool = False,
-                     session: requests.Session = None) -> Dict:
-    """Fetches all issues from a project by impact category."""
+
+def fetch_all_issues(
+    base_url: str,
+    token: str,
+    project_key: str,
+    verbose: bool = False,
+    mqr_mode: bool = False,
+    session: requests.Session = None,
+) -> Dict:
+    """Fetch all project issues using an endpoint compatible with the active mode."""
+    encoded_project_key = quote(project_key, safe="")
+
+    if not mqr_mode:
+        issues_url_template = (
+            f"{base_url.rstrip('/')}/api/issues/search?componentKeys={encoded_project_key}"
+            "&ps={page_size}&p={page}"
+        )
+        return fetch_paginated_items(
+            "issues data",
+            "issues",
+            issues_url_template,
+            token,
+            verbose,
+            session=session,
+        )
+
     issues_by_key = {}
 
     for impact_quality in ISSUE_IMPACT_QUALITIES:
         issues_url_template = (
-            f"{base_url}/api/issues/search?componentKeys={project_key}"
+            f"{base_url.rstrip('/')}/api/issues/search?componentKeys={encoded_project_key}"
             f"&impactSoftwareQualities={impact_quality}"
             "&ps={page_size}&p={page}"
         )
@@ -290,15 +405,21 @@ def fetch_all_issues(base_url: str, token: str, project_key: str,
             "pageIndex": 1,
             "pageSize": len(unique_issues),
             "total": len(unique_issues),
-        }
+        },
     }
 
-def fetch_all_hotspots(base_url: str, token: str, project_key: str,
-                       verbose: bool = False,
-                       session: requests.Session = None) -> Dict:
+
+def fetch_all_hotspots(
+    base_url: str,
+    token: str,
+    project_key: str,
+    verbose: bool = False,
+    session: requests.Session = None,
+) -> Dict:
     """Fetches all security hotspots from a project"""
+    encoded_project_key = quote(project_key, safe="")
     hotspots_url_template = (
-        f"{base_url}/api/hotspots/search?projectKey={project_key}"
+        f"{base_url.rstrip('/')}/api/hotspots/search?projectKey={encoded_project_key}"
         "&ps={page_size}&p={page}"
     )
     return fetch_paginated_items(
@@ -310,11 +431,13 @@ def fetch_all_hotspots(base_url: str, token: str, project_key: str,
         session=session,
     )
 
-def issue_matches_top_severity(issue: SonarQubeIssue, mqr_mode: bool) -> bool:  # pylint: disable=unused-argument
+
+def issue_matches_top_severity(
+    issue: SonarQubeIssue, mqr_mode: bool
+) -> bool:  # pylint: disable=unused-argument
     """Return whether an issue is BLOCKER or has at least one HIGH impact."""
     high_impacts = [
-        impact for impact in issue.impacts
-        if impact.get("severity", "").upper() == "HIGH"
+        impact for impact in issue.impacts if impact.get("severity", "").upper() == "HIGH"
     ]
     if high_impacts:
         issue.impacts = high_impacts
@@ -327,27 +450,24 @@ def issue_matches_top_severity(issue: SonarQubeIssue, mqr_mode: bool) -> bool:  
 
     return False
 
+
 def hotspot_matches_top_severity(hotspot: SonarQubeHotspot) -> bool:
     """Return whether a hotspot matches the highest-severity filter."""
     return hotspot.vulnerability_probability.upper() == "HIGH"
 
-def filter_findings_by_priority(issues: List[SonarQubeIssue],
-                                hotspots: List[SonarQubeHotspot],
-                                mqr_mode: bool):
+
+def filter_findings_by_priority(
+    issues: List[SonarQubeIssue], hotspots: List[SonarQubeHotspot], mqr_mode: bool
+):
     """Keep only BLOCKER or HIGH-severity issues and HIGH-risk hotspots."""
-    filtered_issues = [
-        issue for issue in issues
-        if issue_matches_top_severity(issue, mqr_mode)
-    ]
-    filtered_hotspots = [
-        hotspot for hotspot in hotspots
-        if hotspot_matches_top_severity(hotspot)
-    ]
+    filtered_issues = [issue for issue in issues if issue_matches_top_severity(issue, mqr_mode)]
+    filtered_hotspots = [hotspot for hotspot in hotspots if hotspot_matches_top_severity(hotspot)]
     return filtered_issues, filtered_hotspots
 
-def format_exclusions_note(include_snippets: bool,
-                           high_severity_only: bool,
-                           include_rules: bool) -> Optional[str]:
+
+def format_exclusions_note(
+    include_snippets: bool, high_severity_only: bool, include_rules: bool
+) -> Optional[str]:
     """Build a human-readable cover-page note describing excluded content."""
     excluded_parts = []
 
@@ -370,57 +490,77 @@ def format_exclusions_note(include_snippets: bool,
 
     return f"This report excludes {excluded_summary}."
 
-# Main function to get all report data
-def get_report_data(base_url: str, token: str,
-                    project_key: str, verbose: bool = False,
-                    include_snippets: bool = True,
-                    high_severity_only: bool = False,
-                    include_rules: bool = True) -> ReportData:
-    """Main function that fetches all necessary data from SonarQube API"""
-    metric_keys = [
-    "software_quality_security_rating",
-    "software_quality_reliability_rating",
-    "software_quality_maintainability_rating",
-    "lines_to_cover",
-    "software_quality_maintainability_issues",
-    "software_quality_security_issues",
-    "software_quality_reliability_issues",
-    "accepted_issues",
-    "coverage",
-    "duplicated_lines_density",
-    "lines",
-    "security_hotspots",
-    ]
-    metrics_param = ",".join(metric_keys)
 
-    component_url = f"{base_url}/api/components/show?component={project_key}"
-    measures_url = f"{base_url}/api/measures/component?component={project_key}&metricKeys={metrics_param}" # pylint: disable=line-too-long
-    settings_url = f"{base_url}/api/settings/values?keys=sonar.multi-quality-mode.enabled"
+# Main function to get all report data
+def get_report_data(
+    base_url: str,
+    token: str,
+    project_key: str,
+    verbose: bool = False,
+    include_snippets: bool = True,
+    high_severity_only: bool = False,
+    include_rules: bool = True,
+) -> ReportData:
+    """Main function that fetches all necessary data from SonarQube API"""
+    base_url = base_url.rstrip("/")
+    settings_url = build_api_url(
+        base_url,
+        "/api/settings/values",
+        {"keys": "sonar.multi-quality-mode.enabled"},
+    )
 
     session = create_session(token)
     try:
-        component_data = fetch("project component data...", component_url, token, verbose,
-                               session=session)
-        issues_data = fetch_all_issues(base_url, token, project_key, verbose, session=session)
+        try:
+            settings_data = fetch(
+                "SonarQube settings...", settings_url, token, verbose, session=session
+            )
+        except requests.RequestException as error:
+            settings_data = {}
+            print_message(
+                "WARNING: Could not detect SonarQube mode; defaulting to Standard Experience "
+                f"({error})"
+            )
+
+        settings = get_mode_setting(settings_data, default=False)
+        metrics_param = ",".join(get_metric_keys(settings))
+        component_url = build_api_url(base_url, "/api/components/show", {"component": project_key})
+        measures_url = build_api_url(
+            base_url,
+            "/api/measures/component",
+            {"component": project_key, "metricKeys": metrics_param},
+        )
+
+        component_data = fetch(
+            "project component data...", component_url, token, verbose, session=session
+        )
+        issues_data = fetch_all_issues(
+            base_url,
+            token,
+            project_key,
+            verbose,
+            mqr_mode=settings,
+            session=session,
+        )
         measures_data = fetch("measures data...", measures_url, token, verbose, session=session)
-        settings_data = fetch("SonarQube settings...", settings_url, token, verbose,
-                              session=session)
         hotspots_data = fetch_all_hotspots(base_url, token, project_key, verbose, session=session)
 
         project = SonarQubeProject.from_dict(component_data)
 
-        issues = [SonarQubeIssue.from_dict(issue_data) for issue_data in issues_data.get("issues", [])]
+        issues = [
+            SonarQubeIssue.from_dict(issue_data) for issue_data in issues_data.get("issues", [])
+        ]
         hotspots = [
             SonarQubeHotspot.from_dict(hotspot_data)
             for hotspot_data in hotspots_data.get("hotspots", [])
         ]
 
-        settings: bool = settings_data.get("sonar.multi-quality-mode.enabled",
-                                           {}).get("value", "true").lower() == "true"
-
         if high_severity_only:
             issues, hotspots = filter_findings_by_priority(issues, hotspots, settings)
-            log(verbose, "Filtering findings to top severity only (BLOCKER or HIGH-severity issues / HIGH hotspots)...") # pylint: disable=line-too-long
+            log(
+                verbose,
+                "Filtering findings to top severity only (BLOCKER or HIGH-severity issues / HIGH hotspots)...",
+            )  # pylint: disable=line-too-long
 
         if include_snippets:
             log(verbose, f"Processing {len(issues)} issues and fetching code snippets...")
@@ -434,7 +574,10 @@ def get_report_data(base_url: str, token: str,
         }
 
         if include_snippets:
-            log(verbose, f"Processing {len(hotspots)} security hotspots and fetching code snippets...")
+            log(
+                verbose,
+                f"Processing {len(hotspots)} security hotspots and fetching code snippets...",
+            )
             populate_code_snippets(hotspots, base_url, token, "hotspot", verbose)
         else:
             log(verbose, "Skipping hotspot code snippets (--no-snippets enabled)")
@@ -454,7 +597,10 @@ def get_report_data(base_url: str, token: str,
             # Fetch rule descriptions
             rules = get_rules(base_url, token, list(rule_keys), verbose, session=session)
         else:
-            log(verbose, "Skipping rule descriptions and Rules Reference section (--no-rules enabled)")
+            log(
+                verbose,
+                "Skipping rule descriptions and Rules Reference section (--no-rules enabled)",
+            )
             rules = {}
 
         log(verbose, "Data collection summary:")
@@ -466,8 +612,14 @@ def get_report_data(base_url: str, token: str,
         log(verbose, f"   • Code snippets enabled: {include_snippets}")
         log(verbose, f"   • Top severity only: {high_severity_only}")
         log(verbose, f"   • Rules section enabled: {include_rules}")
-        log(verbose, f"   • Issues with code snippets: {sum(1 for i in issues if i.code_snippet and i.code_snippet.strip())}") # pylint: disable=line-too-long
-        log(verbose, f"   • Hotspots with code snippets: {sum(1 for h in hotspots if h.code_snippet and h.code_snippet.strip())}") # pylint: disable=line-too-long
+        log(
+            verbose,
+            f"   • Issues with code snippets: {sum(1 for i in issues if i.code_snippet and i.code_snippet.strip())}",
+        )  # pylint: disable=line-too-long
+        log(
+            verbose,
+            f"   • Hotspots with code snippets: {sum(1 for h in hotspots if h.code_snippet and h.code_snippet.strip())}",
+        )  # pylint: disable=line-too-long
         log(verbose, f"   • Rules descriptions fetched: {len(rules)}")
 
         return ReportData(

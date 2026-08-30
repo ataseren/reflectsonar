@@ -11,17 +11,26 @@ from reportlab.lib.pagesizes import A4
 from reportlab.lib.units import cm
 from ..data.models import ReportData
 
-from .utils import draw_logo, BookmarkFlowable, log # pylint: disable=relative-beyond-top-level
-from .cover_page import generate_cover_page # pylint: disable=relative-beyond-top-level
-from .issues import ( generate_security_issues_page, # pylint: disable=relative-beyond-top-level
-    generate_reliability_issues_page, # pylint: disable=relative-beyond-top-level
-    generate_maintainability_issues_page # pylint: disable=relative-beyond-top-level
+from .utils import (
+    draw_logo,
+    BookmarkFlowable,
+    log,
+    safe_print,
+)  # pylint: disable=relative-beyond-top-level
+from .cover_page import generate_cover_page  # pylint: disable=relative-beyond-top-level
+from .issues import (
+    generate_security_issues_page,  # pylint: disable=relative-beyond-top-level
+    generate_reliability_issues_page,  # pylint: disable=relative-beyond-top-level
+    generate_maintainability_issues_page,  # pylint: disable=relative-beyond-top-level
 )
-from .hotspots import generate_security_hotspots_page # pylint: disable=relative-beyond-top-level
-from .rules import generate_rules_page # pylint: disable=relative-beyond-top-level
+from .hotspots import generate_security_hotspots_page  # pylint: disable=relative-beyond-top-level
+from .rules import generate_rules_page  # pylint: disable=relative-beyond-top-level
 
-def create_pdf_progress_callback(progress_printer=print):
+
+def create_pdf_progress_callback(progress_printer=None):
     """Create a ReportLab progress callback that prints the current PDF page."""
+    if progress_printer is None:
+        progress_printer = safe_print
     state = {
         "page": 0,
         "pass_number": 1,
@@ -55,6 +64,7 @@ def create_pdf_progress_callback(progress_printer=print):
 
     return progress_callback
 
+
 def add_header_footer(canvas, doc):
     """Adds header and footer to each page of the PDF document"""
     canvas.saveState()
@@ -78,9 +88,11 @@ def add_header_footer(canvas, doc):
 
     canvas.restoreState()
 
+
 # Main function to generate the PDF report
-def generate_pdf(report: ReportData, output_path: str = None,
-                 project_key: str = None, verbose: bool = False):
+def generate_pdf(
+    report: ReportData, output_path: str = None, project_key: str = None, verbose: bool = False
+):
     """Main function that generates a PDF report from the provided ReportData object"""
 
     # Determine SonarQube mode
@@ -97,24 +109,28 @@ def generate_pdf(report: ReportData, output_path: str = None,
         final_path = output_path
     else:
         final_path = f"reflect_sonar_report_{project_key}_{time.strftime('%Y%m%d')}.pdf"
-    log(verbose,f"Creating PDF document: {final_path}")
+    log(verbose, f"Creating PDF document: {final_path}")
 
     # Set document title for browser/viewer tab
-    project_name = report.project.name if hasattr(report, 'project') and report.project and hasattr(report.project, 'name') else project_key
+    project_name = (
+        report.project.name
+        if hasattr(report, "project") and report.project and hasattr(report.project, "name")
+        else project_key
+    )
     document_title = f"ReflectSonar Report - {project_name}"
-    
+
     doc = SimpleDocTemplate(
         final_path,
         pagesize=A4,
-        topMargin=3*cm,
-        bottomMargin=2*cm,
-        leftMargin=2*cm,
-        rightMargin=2*cm,
+        topMargin=3 * cm,
+        bottomMargin=2 * cm,
+        leftMargin=2 * cm,
+        rightMargin=2 * cm,
         title=document_title,
         author="ReflectSonar",
         subject=f"Quality Report for {project_name}",
         creator="ReflectSonar PDF Generator",
-        keywords=f"SonarQube,Quality,Report,{project_name}"
+        keywords=f"SonarQube,Quality,Report,{project_name}",
     )
     doc.setProgressCallBack(create_pdf_progress_callback())
 

@@ -5,6 +5,7 @@ Utility functions and classes for report generation
 import os
 import html
 import re
+import sys
 import traceback
 
 from reportlab.platypus import Flowable, Paragraph
@@ -13,10 +14,15 @@ from reportlab.lib import colors
 from reportlab.lib.colors import HexColor
 from reportlab.graphics.shapes import Drawing, Circle, String
 
+CODE_SNIPPET_MAX_CHARS = 80
+CODE_SNIPPET_MAX_LINES = 30
+
+
 # Custom flowable to add bookmarks to PDF
 class BookmarkFlowable(Flowable):
     """Flowable to add bookmarks to the PDF outline to create a table of contents"""
-    def __init__(self, title, level=0): # pylint: disable=super-init-not-called
+
+    def __init__(self, title, level=0):  # pylint: disable=super-init-not-called
         self.title = title
         self.level = level
         self.width = 0
@@ -36,9 +42,11 @@ class BookmarkFlowable(Flowable):
         # Then add to PDF outline with proper level and title
         canvas.addOutlineEntry(self.title, key, level=self.level)
 
+
 class SeverityBookmarkFlowable(Flowable):
     """Flowable to add severity-level bookmarks that link to specific anchors in the document"""
-    def __init__(self, title, anchor_id, level=1): # pylint: disable=super-init-not-called
+
+    def __init__(self, title, anchor_id, level=1):  # pylint: disable=super-init-not-called
         self.title = title
         self.anchor_id = anchor_id
         self.level = level
@@ -56,8 +64,10 @@ class SeverityBookmarkFlowable(Flowable):
         # Add to PDF outline with reference to the anchor
         canvas.addOutlineEntry(self.title, anchor_key, level=self.level)
 
+
 class ParagraphWithAnchor(Paragraph):
     """Paragraph that can create an anchor point when drawn"""
+
     def __init__(self, text, style, anchor_id=None):
         super().__init__(text, style)
         self.anchor_id = anchor_id
@@ -71,32 +81,46 @@ class ParagraphWithAnchor(Paragraph):
         # Then draw the normal paragraph content
         super().draw()
 
+
 # Initialize styles
 styles = getSampleStyleSheet()
 style_normal = styles["Normal"]
 style_title = ParagraphStyle("Title", parent=styles["Heading1"], alignment=2, fontSize=20)
-style_subtitle = ParagraphStyle("Subtitle", parent=styles["Normal"],
-                                alignment=2, fontSize=10, italic=True)
+style_subtitle = ParagraphStyle(
+    "Subtitle", parent=styles["Normal"], alignment=2, fontSize=10, italic=True
+)
 style_meta = ParagraphStyle("Meta", parent=style_normal, spaceAfter=6)
 style_footer = ParagraphStyle("Footer", parent=style_normal, alignment=0, fontSize=10)
-style_section_title = ParagraphStyle("SectionTitle", parent=styles["Heading1"],
-                                     fontSize=16, spaceAfter=12, spaceBefore=12)
-style_issue_title = ParagraphStyle("IssueTitle", parent=styles["Heading2"],
-                                   fontSize=12, spaceAfter=6)
-style_issue_meta = ParagraphStyle("IssueMeta", parent=style_normal, fontSize=9,
-                                  textColor=colors.gray)
-style_rule_title = ParagraphStyle("RuleTitle", parent=styles["Heading2"],
-                                  fontSize=12, spaceAfter=6)
-style_rule_subtitle = ParagraphStyle("RuleSubtitle", parent=styles["Heading3"],
-                                     alignment=2, fontSize=10, spaceAfter=12)
-style_section_key = ParagraphStyle("SectionKey", parent=styles["Heading3"],fontSize=11,
-                            fontName="Helvetica-Bold", spaceAfter=4, spaceBefore=6, italic=False)
+style_section_title = ParagraphStyle(
+    "SectionTitle", parent=styles["Heading1"], fontSize=16, spaceAfter=12, spaceBefore=12
+)
+style_issue_title = ParagraphStyle(
+    "IssueTitle", parent=styles["Heading2"], fontSize=12, spaceAfter=6
+)
+style_issue_meta = ParagraphStyle(
+    "IssueMeta", parent=style_normal, fontSize=9, textColor=colors.gray
+)
+style_rule_title = ParagraphStyle("RuleTitle", parent=styles["Heading2"], fontSize=12, spaceAfter=6)
+style_rule_subtitle = ParagraphStyle(
+    "RuleSubtitle", parent=styles["Heading3"], alignment=2, fontSize=10, spaceAfter=12
+)
+style_section_key = ParagraphStyle(
+    "SectionKey",
+    parent=styles["Heading3"],
+    fontSize=11,
+    fontName="Helvetica-Bold",
+    spaceAfter=4,
+    spaceBefore=6,
+    italic=False,
+)
 
 _PROGRESS_ACTIVE = False
 _PROGRESS_LENGTH = 0
 
+
 class CircleBadge(Flowable):
     """Flowable to create a circular badge with a letter inside"""
+
     def __init__(self, letter, radius=12, color=HexColor("#D50000")):
         super().__init__()
         self.letter = letter
@@ -107,11 +131,23 @@ class CircleBadge(Flowable):
     def draw(self):
         """Draw the circular badge with the letter"""
         d = Drawing(self.width, self.height)
-        d.add(Circle(self.radius, self.radius, self.radius,
-                     fillColor=self.color, strokeColor=self.color))
-        d.add(String(self.radius, self.radius - 4, self.letter, fontName="Helvetica",
-                     fontSize=self.radius, textAnchor="middle"))
+        d.add(
+            Circle(
+                self.radius, self.radius, self.radius, fillColor=self.color, strokeColor=self.color
+            )
+        )
+        d.add(
+            String(
+                self.radius,
+                self.radius - 4,
+                self.letter,
+                fontName="Helvetica",
+                fontSize=self.radius,
+                textAnchor="middle",
+            )
+        )
         d.drawOn(self.canv, 0, 0)
+
 
 def badge(letter):
     """Create a colored badge for the given letter grade"""
@@ -124,11 +160,24 @@ def badge(letter):
     }
     return CircleBadge(letter, radius=12, color=color_map.get(letter, HexColor("#9E9E9E")))
 
+
+def safe_print(message: str = "", **kwargs):
+    """Print text without crashing on consoles that cannot encode Unicode."""
+    try:
+        print(message, **kwargs)
+    except UnicodeEncodeError:
+        stream = kwargs.get("file", sys.stdout)
+        encoding = getattr(stream, "encoding", None) or "ascii"
+        safe_message = str(message).encode(encoding, errors="replace").decode(encoding)
+        print(safe_message, **kwargs)
+
+
 def log(verbose: bool, message: str):
     """Print message if verbose mode is enabled"""
     if verbose:
         finish_progress()
-        print(message)
+        safe_print(message)
+
 
 def log_progress(verbose: bool, message: str):
     """Update a single-line progress message when verbose mode is enabled."""
@@ -138,23 +187,26 @@ def log_progress(verbose: bool, message: str):
     global _PROGRESS_ACTIVE, _PROGRESS_LENGTH
 
     padded_message = message + (" " * max(0, _PROGRESS_LENGTH - len(message)))
-    print(f"\r{padded_message}", end="", flush=True)
+    safe_print(f"\r{padded_message}", end="", flush=True)
     _PROGRESS_ACTIVE = True
     _PROGRESS_LENGTH = len(message)
+
 
 def finish_progress():
     """Finish the active single-line progress message, if any."""
     global _PROGRESS_ACTIVE, _PROGRESS_LENGTH
 
     if _PROGRESS_ACTIVE:
-        print()
+        safe_print()
         _PROGRESS_ACTIVE = False
         _PROGRESS_LENGTH = 0
+
 
 def print_message(message: str = ""):
     """Print a normal message without colliding with an active progress line."""
     finish_progress()
-    print(message)
+    safe_print(message)
+
 
 # Convert numeric score to letter grade
 def score_to_grade(score: float) -> str:
@@ -170,29 +222,20 @@ def score_to_grade(score: float) -> str:
     else:
         return "E"
 
+
 def get_measure_value(measures, metric, default="0"):
     """Get the numeric value of a measure or return default if not found"""
     return float(measures.get(metric).value if metric in measures else default)
 
+
 def get_severity_order(severity: str, mode: str = "STANDARD") -> int:
     """Get the order of severity for sorting purposes"""
     if mode == "MQR":
-        severity_map = {
-            "BLOCKER": 1,
-            "HIGH": 2,
-            "MEDIUM": 3,
-            "LOW": 4,
-            "INFO": 5
-        }
+        severity_map = {"BLOCKER": 1, "HIGH": 2, "MEDIUM": 3, "LOW": 4, "INFO": 5}
     else:  # STANDARD mode
-        severity_map = {
-            "BLOCKER": 1,
-            "CRITICAL": 2,
-            "MAJOR": 3,
-            "MINOR": 4,
-            "INFO": 5
-        }
+        severity_map = {"BLOCKER": 1, "CRITICAL": 2, "MAJOR": 3, "MINOR": 4, "INFO": 5}
     return severity_map.get(severity.upper(), 99)
+
 
 # Return color for severity badge
 def get_severity_color(severity: str, mode: str = "STANDARD") -> HexColor:
@@ -203,7 +246,7 @@ def get_severity_color(severity: str, mode: str = "STANDARD") -> HexColor:
             "HIGH": HexColor("#EB0A0A"),
             "MEDIUM": HexColor("#FF6600"),
             "LOW": HexColor("#FFD001"),
-            "INFO": HexColor("#4CA3EB")
+            "INFO": HexColor("#4CA3EB"),
         }
     else:  # STANDARD mode
         color_map = {
@@ -211,24 +254,27 @@ def get_severity_color(severity: str, mode: str = "STANDARD") -> HexColor:
             "CRITICAL": HexColor("#FF5722"),
             "MAJOR": HexColor("#FF9800"),
             "MINOR": HexColor("#FFC107"),
-            "INFO": HexColor("#2196F3")
+            "INFO": HexColor("#2196F3"),
         }
     return color_map.get(severity.upper(), HexColor("#9E9E9E"))
+
 
 def get_severity_list(mode: str = "MQR") -> list:
     """Get the ordered list of severities based on the mode"""
     if mode == "STANDARD":
         return ["BLOCKER", "CRITICAL", "MAJOR", "MINOR", "INFO"]
     else:  # MQR mode
-        return ["BLOCKER","HIGH", "MEDIUM", "LOW", "INFO"]
+        return ["BLOCKER", "HIGH", "MEDIUM", "LOW", "INFO"]
+
 
 def draw_logo(canvas, logo_path, x, y, width, height):
     """Draw the logo image on the canvas at specified position and size"""
     try:
         if os.path.exists(logo_path):
             # Method 1: Use mask='auto' for automatic transparency detection
-            canvas.drawImage(logo_path, x, y, width=width, height=height,
-                            preserveAspectRatio=True, mask='auto')
+            canvas.drawImage(
+                logo_path, x, y, width=width, height=height, preserveAspectRatio=True, mask="auto"
+            )
         else:
             # If logo file doesn't exist, draw a placeholder
             canvas.setStrokeColor(colors.lightgrey)
@@ -236,13 +282,15 @@ def draw_logo(canvas, logo_path, x, y, width, height):
             canvas.rect(x, y, width, height, fill=1, stroke=1)
             canvas.setFillColor(colors.black)
             canvas.setFont("Helvetica", 8)
-            canvas.drawString(x + 5, y + height/2, "Logo")
-    except Exception: # pylint: disable=broad-exception-caught
+            canvas.drawString(x + 5, y + height / 2, "Logo")
+    except Exception:  # pylint: disable=broad-exception-caught
         print_message("WARNING: Failed to add the logo.")
+
 
 def severity_badge(severity: str, mode: str = "MQR"):
     """Create a colored badge for the given issue severity"""
     return CircleBadge(severity[0].upper(), radius=8, color=get_severity_color(severity, mode))
+
 
 def _normalize_text(text) -> str:
     """Normalize external text content before embedding it in ReportLab markup."""
@@ -250,40 +298,83 @@ def _normalize_text(text) -> str:
         return ""
     return html.unescape(str(text)).replace("\r\n", "\n").replace("\r", "\n")
 
+
 def escape_reportlab_text(text) -> str:
     """Escape text so ReportLab treats it as plain content, not markup."""
     return html.escape(_normalize_text(text), quote=True)
+
 
 def plain_text_to_reportlab(text) -> str:
     """Convert plain text to safe ReportLab markup with preserved line breaks."""
     return escape_reportlab_text(text).replace("\n", "<br/>")
 
-def format_code_snippet_for_reportlab(code) -> str:
-    """Format raw source text as safe ReportLab markup for monospace display."""
+
+def _wrap_code_line(line: str, max_chars: int):
+    """Hard-wrap one source line while making continuation lines obvious."""
+    if len(line) <= max_chars:
+        return [line]
+
+    wrapped_lines = [line[:max_chars]]
+    remaining = line[max_chars:]
+    continuation_width = max_chars - 4
+
+    while remaining:
+        wrapped_lines.append(f"    {remaining[:continuation_width]}")
+        remaining = remaining[continuation_width:]
+
+    return wrapped_lines
+
+
+def _format_code_line(raw_line: str, problematic: bool) -> str:
+    """Escape and style one already-wrapped source line."""
+    escaped_line = html.escape(raw_line, quote=True)
+    escaped_line = re.sub(r" {2,}", lambda match: "&nbsp;" * len(match.group(0)), escaped_line)
+    escaped_line = re.sub(
+        r"^((?:&gt;&gt;&gt; )?(?:&nbsp;| )*)(\d+)(:)",
+        r'\1<font color="gray">\2</font>\3',
+        escaped_line,
+        count=1,
+    )
+
+    if problematic:
+        return f'<font color="red"><b>{escaped_line}</b></font>'
+    return escaped_line
+
+
+def split_code_snippet_for_reportlab(
+    code,
+    max_chars: int = CODE_SNIPPET_MAX_CHARS,
+    max_lines: int = CODE_SNIPPET_MAX_LINES,
+):
+    """Return page-safe chunks of escaped, hard-wrapped source-code markup."""
     if not code:
-        return ""
+        return []
+    if max_chars < 8:
+        raise ValueError("max_chars must be at least 8")
+    if max_lines < 1:
+        raise ValueError("max_lines must be at least 1")
 
     formatted_lines = []
-    for raw_line in _normalize_text(code).replace("\t", "    ").split("\n"):
-        escaped_line = html.escape(raw_line, quote=True)
-        escaped_line = re.sub(r" {2,}", lambda match: "&nbsp;" * len(match.group(0)),
-                              escaped_line)
-        escaped_line = re.sub(
-            r'^((?:&gt;&gt;&gt; )?(?:&nbsp;| )*)(\d+)(:)',
-            r'\1<font color="gray">\2</font>\3',
-            escaped_line,
-            count=1,
-        )
+    normalized_lines = _normalize_text(code).replace("\t", "    ").split("\n")
 
-        if escaped_line.startswith("&gt;&gt;&gt;"):
-            escaped_line = f'<font color="red"><b>{escaped_line}</b></font>'
+    for raw_line in normalized_lines:
+        problematic = raw_line.startswith(">>>")
+        for wrapped_line in _wrap_code_line(raw_line, max_chars):
+            formatted_lines.append(_format_code_line(wrapped_line, problematic))
 
-        formatted_lines.append(escaped_line)
+    return [
+        "<br/>".join(formatted_lines[index : index + max_lines])
+        for index in range(0, len(formatted_lines), max_lines)
+    ]
 
-    return "<br/>".join(formatted_lines)
+
+def format_code_snippet_for_reportlab(code) -> str:
+    """Format raw source text as safe ReportLab markup for monospace display."""
+    return "<br/>".join(split_code_snippet_for_reportlab(code))
+
 
 def handle_exception(e: Exception, verbose: bool) -> int:
-    """ Handle exceptions and print user-friendly messages"""
+    """Handle exceptions and print user-friendly messages"""
     table = {
         KeyboardInterrupt: (
             ["\n", "🛑 Report generation interrupted by user", "✨ Thanks for using ReflectSonar!"],

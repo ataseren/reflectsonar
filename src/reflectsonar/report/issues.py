@@ -3,19 +3,29 @@ This module generates issue pages of the report
 by using data from SonarQube.
 """
 
-from reportlab.platypus import (
-     Paragraph, Spacer, Table, TableStyle, KeepTogether
-)
+from typing import Dict, List, Set
+
+from reportlab.platypus import Paragraph, Spacer, Table, TableStyle, KeepTogether
 from reportlab.lib.units import cm
 from reportlab.lib.styles import ParagraphStyle
 from reportlab.lib import colors
 
-from .utils import (style_section_title, style_issue_meta, style_normal, # pylint: disable=relative-beyond-top-level
-    get_severity_order, get_severity_list, # pylint: disable=relative-beyond-top-level
-    severity_badge, SeverityBookmarkFlowable, ParagraphWithAnchor, # pylint: disable=relative-beyond-top-level
-    escape_reportlab_text, plain_text_to_reportlab, format_code_snippet_for_reportlab) # pylint: disable=relative-beyond-top-level
+from .utils import (
+    style_section_title,
+    style_issue_meta,
+    style_normal,  # pylint: disable=relative-beyond-top-level
+    get_severity_order,
+    get_severity_list,  # pylint: disable=relative-beyond-top-level
+    severity_badge,
+    SeverityBookmarkFlowable,
+    ParagraphWithAnchor,  # pylint: disable=relative-beyond-top-level
+    escape_reportlab_text,
+    plain_text_to_reportlab,
+    split_code_snippet_for_reportlab,
+)  # pylint: disable=relative-beyond-top-level
 
 ISSUE_TABLE_MAX_ROWS = 120
+
 
 def get_issues_by_impact_category(issues, category: str):
     """Filters issues by their impact category"""
@@ -26,15 +36,17 @@ def get_issues_by_impact_category(issues, category: str):
         if issue.impacts:
             # Look for the category in the impacts
             for impact in issue.impacts:
-                if impact.get('softwareQuality', '').upper() == category.upper():
+                if impact.get("softwareQuality", "").upper() == category.upper():
                     filtered_issues.append(issue)
                     break
         else:
             # Fallback to legacy categorization for older SonarQube versions
             if category.upper() == "SECURITY":
-                if (issue.type.upper() == "VULNERABILITY" or
-                    issue.type.upper() == "SECURITY_HOTSPOT" or
-                    any(tag.lower() in ['security', 'cwe', 'owasp'] for tag in issue.tags)):
+                if (
+                    issue.type.upper() == "VULNERABILITY"
+                    or issue.type.upper() == "SECURITY_HOTSPOT"
+                    or any(tag.lower() in ["security", "cwe", "owasp"] for tag in issue.tags)
+                ):
                     filtered_issues.append(issue)
             elif category.upper() == "RELIABILITY":
                 if issue.type.upper() == "BUG":
@@ -45,18 +57,29 @@ def get_issues_by_impact_category(issues, category: str):
 
     return filtered_issues
 
-def get_issue_display_severity(issue, mode: str):
+
+def get_issue_display_severity(issue, mode: str, category: str = None):
     """Returns the severity label that should be shown in the report"""
     if mode == "MQR" and issue.impacts:
-        for impact in issue.impacts:
-            impact_severity = impact.get('severity', '')
-            if impact_severity:
-                return impact_severity
+        matching_impacts = [
+            impact
+            for impact in issue.impacts
+            if not category or impact.get("softwareQuality", "").upper() == category.upper()
+        ]
+        impact_severities = [
+            impact.get("severity", "").upper()
+            for impact in matching_impacts
+            if impact.get("severity")
+        ]
+        if impact_severities:
+            return min(impact_severities, key=lambda value: get_severity_order(value, mode))
     return issue.severity
 
-def get_issue_sort_order(issue, mode: str):
+
+def get_issue_sort_order(issue, mode: str, category: str = None):
     """Returns the sort order for an issue based on the active SonarQube mode"""
-    return get_severity_order(get_issue_display_severity(issue, mode), mode)
+    return get_severity_order(get_issue_display_severity(issue, mode, category), mode)
+
 
 def chunk_issues_for_tables(issues, max_rows: int = None):
     """Split large issue lists into smaller chunks to avoid giant ReportLab tables"""
@@ -64,11 +87,16 @@ def chunk_issues_for_tables(issues, max_rows: int = None):
         max_rows = ISSUE_TABLE_MAX_ROWS
 
     chunks = []
-    current_chunk = []
+    current_chunk: List[object] = []
     current_rows = 0
 
     for issue in issues:
-        row_cost = 2 if issue.code_snippet and issue.code_snippet.strip() else 1
+        snippet_chunks = (
+            split_code_snippet_for_reportlab(issue.code_snippet)
+            if issue.code_snippet and issue.code_snippet.strip()
+            else []
+        )
+        row_cost = 1 + len(snippet_chunks)
 
         if current_chunk and current_rows + row_cost > max_rows:
             chunks.append(current_chunk)
@@ -83,43 +111,53 @@ def chunk_issues_for_tables(issues, max_rows: int = None):
 
     return chunks
 
+
 # Create a table displaying issues with severity, rule, and message
-def create_issue_table(issues, mode: str = "STANDARD", section_name: str = "",
-                       seen_severities=None, sort_issues: bool = True):
+def create_issue_table(
+    issues,
+    mode: str = "STANDARD",
+    section_name: str = "",
+    seen_severities=None,
+    sort_issues: bool = True,
+    category: str = None,
+):
     """Creates a table of issues with severity, file path, rule, message, and code snippet"""
     if not issues:
         # Create a list with spacer and paragraph for better formatting
         content = [
-            Spacer(1, 5*cm),
-            Paragraph(
-                "<i>No issues found in this category.</i>", 
-                style_normal
-            )
+            Spacer(1, 5 * cm),
+            Paragraph("<i>No issues found in this category.</i>", style_normal),
         ]
         return KeepTogether(content)
 
     if seen_severities is None:
         seen_severities = set()
 
-    sorted_issues = sorted(issues, key=lambda issue: get_issue_sort_order(issue, mode)) \
-        if sort_issues else issues
+    sorted_issues = (
+        sorted(issues, key=lambda issue: get_issue_sort_order(issue, mode, category))
+        if sort_issues
+        else issues
+    )
 
     table_data = []
 
     # Add header
-    header_style = ParagraphStyle("Header", parent=style_normal,
-                                  fontName="Helvetica-Bold", fontSize=10)
-    table_data.append([
-        Paragraph("Severity", header_style),
-        Paragraph("File Path", header_style),
-        Paragraph("Rule & Message", header_style)
-    ])
+    header_style = ParagraphStyle(
+        "Header", parent=style_normal, fontName="Helvetica-Bold", fontSize=10
+    )
+    table_data.append(
+        [
+            Paragraph("Severity", header_style),
+            Paragraph("File Path", header_style),
+            Paragraph("Rule & Message", header_style),
+        ]
+    )
 
     file_path_style = ParagraphStyle(
         "FilePathStyle",
         parent=style_issue_meta,
         fontSize=8,  # Slightly smaller for paths
-        wordWrap='LTR'  # Better word wrapping for long paths
+        wordWrap="LTR",  # Better word wrapping for long paths
     )
     code_style = ParagraphStyle(
         "CodeStyle",
@@ -134,11 +172,11 @@ def create_issue_table(issues, mode: str = "STANDARD", section_name: str = "",
         spaceAfter=6,
         borderWidth=1,
         borderColor=colors.Color(0.8, 0.8, 0.8),  # Light border
-        borderPadding=8
+        borderPadding=8,
     )
 
     for issue in sorted_issues:
-        display_severity = get_issue_display_severity(issue, mode)
+        display_severity = get_issue_display_severity(issue, mode, category)
 
         # Check if this is the first occurrence of this severity level
         anchor_id = None
@@ -150,13 +188,13 @@ def create_issue_table(issues, mode: str = "STANDARD", section_name: str = "",
         # Use full component path instead of just filename
         full_path = issue.component
         # Remove project key prefix if present
-        if ':' in full_path:
-            full_path = full_path.split(':', 1)[1]
+        if ":" in full_path:
+            full_path = full_path.split(":", 1)[1]
 
         # Smart path formatting - break long paths for better readability
         if len(full_path) > 40:
             # Find good break points (after / or before long segments)
-            parts = full_path.split('/')
+            parts = full_path.split("/")
             if len(parts) > 1:
                 # Group parts to keep lines under ~40 chars when possible
                 formatted_parts = []
@@ -195,29 +233,35 @@ def create_issue_table(issues, mode: str = "STANDARD", section_name: str = "",
             filename_paragraph = Paragraph(filename, file_path_style)
 
         # Add main issue row
-        table_data.append([
-            severity_badge(display_severity, mode),
-            filename_paragraph,
-            Paragraph(rule_and_message, style_normal)
-        ])
+        table_data.append(
+            [
+                severity_badge(display_severity, mode),
+                filename_paragraph,
+                Paragraph(rule_and_message, style_normal),
+            ]
+        )
 
         # Add code snippet row if available
         if issue.code_snippet and issue.code_snippet.strip():
-            formatted_code = format_code_snippet_for_reportlab(issue.code_snippet)
+            snippet_chunks = split_code_snippet_for_reportlab(issue.code_snippet)
 
-            code_paragraph = Paragraph(
-                f"<b><font color='darkblue'>📄 Problematic Code:</font></b><br/>"
-                f"<font name='Courier' size='8'>{formatted_code}</font>",
-                code_style
-            )
+            for chunk_index, formatted_code in enumerate(snippet_chunks):
+                label = "Problematic Code:" if chunk_index == 0 else "Problematic Code (continued):"
+                code_paragraph = Paragraph(
+                    f"<b><font color='darkblue'>📄 {label}</font></b><br/>"
+                    f"<font name='Courier' size='8'>{formatted_code}</font>",
+                    code_style,
+                )
 
-            table_data.append([
-                code_paragraph,  # Code paragraph spans all columns
-                "",  # Placeholder for span
-                ""   # Placeholder for span  
-            ])
+                table_data.append(
+                    [
+                        code_paragraph,  # Code paragraph spans all columns
+                        "",  # Placeholder for span
+                        "",  # Placeholder for span
+                    ]
+                )
 
-    table = Table(table_data, colWidths=[2*cm, 5*cm, 11*cm])
+    table = Table(table_data, colWidths=[1.8 * cm, 4.7 * cm, 10.5 * cm], repeatRows=1)
 
     # Build dynamic table styling
     table_style = [
@@ -226,16 +270,13 @@ def create_issue_table(issues, mode: str = "STANDARD", section_name: str = "",
         ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
         ("FONTSIZE", (0, 0), (-1, 0), 10),
         ("ALIGN", (0, 0), (-1, 0), "CENTER"),
-
         # General table styling
         ("FONTNAME", (0, 1), (-1, -1), "Helvetica"),
         ("FONTSIZE", (0, 1), (-1, -1), 9),
         ("ALIGN", (0, 1), (0, -1), "CENTER"),  # Severity column centered
         ("VALIGN", (0, 0), (-1, -1), "TOP"),
-
         # Grid lines
         ("GRID", (0, 0), (-1, -1), 0.5, colors.grey),
-
         # Padding
         ("LEFTPADDING", (0, 0), (-1, -1), 6),
         ("RIGHTPADDING", (0, 0), (-1, -1), 6),
@@ -245,11 +286,11 @@ def create_issue_table(issues, mode: str = "STANDARD", section_name: str = "",
 
     # Apply enhanced styling for code snippet rows
     for i, row in enumerate(table_data[1:], start=1):  # Skip header
-        if (isinstance(row[1], str) and row[1] == "" and
-            isinstance(row[2], str) and row[2] == ""):
+        if isinstance(row[1], str) and row[1] == "" and isinstance(row[2], str) and row[2] == "":
             # This is a code snippet row - first column has content, others are empty
-            table_style.append(("BACKGROUND", (0, i), (-1, i),
-                                colors.Color(0.98, 0.98, 1.0)))  # Very light blue
+            table_style.append(
+                ("BACKGROUND", (0, i), (-1, i), colors.Color(0.98, 0.98, 1.0))
+            )  # Very light blue
             table_style.append(("SPAN", (0, i), (2, i)))  # Span from column 0 to 2
             table_style.append(("LEFTPADDING", (0, i), (0, i), 10))
             table_style.append(("RIGHTPADDING", (0, i), (0, i), 10))
@@ -262,23 +303,25 @@ def create_issue_table(issues, mode: str = "STANDARD", section_name: str = "",
 
     return table
 
-def create_issue_section(title: str, issues, elements, mode: str = "STANDARD"):
+
+def create_issue_section(
+    title: str, issues, elements, mode: str = "STANDARD", category: str = None
+):
     """Creates a complete issue section with title, summary, and table"""
     elements.append(Paragraph(title, style_section_title))
 
     # Add issue count summary
     if issues:
-        severity_counts = {}
+        severity_counts: Dict[str, int] = {}
 
         # Count severities differently based on mode
         for issue in issues:
             if mode == "MQR" and issue.impacts:
-                # For MQR mode, use impact severity
-                for impact in issue.impacts:
-                    impact_severity = impact.get('severity', '').upper()
-                    if impact_severity:
-                        severity_counts[impact_severity] = severity_counts.get(impact_severity, 0) + 1 # pylint: disable=line-too-long
-                        break  # Use first impact severity
+                impact_severity = get_issue_display_severity(issue, mode, category).upper()
+                if impact_severity:
+                    severity_counts[impact_severity] = (
+                        severity_counts.get(impact_severity, 0) + 1
+                    )  # pylint: disable=line-too-long
             else:
                 # For Standard mode, use issue severity
                 severity = issue.severity.upper()
@@ -295,7 +338,9 @@ def create_issue_section(title: str, issues, elements, mode: str = "STANDARD"):
                 # Create anchor ID for this severity in this section
                 anchor_id = f"{title}_{severity}".replace(" ", "_")
                 # Add severity-specific bookmark that will link to the anchor
-                elements.append(SeverityBookmarkFlowable(f"{severity.title()} ({count})", anchor_id, 1)) # pylint: disable=line-too-long
+                elements.append(
+                    SeverityBookmarkFlowable(f"{severity.title()} ({count})", anchor_id, 1)
+                )  # pylint: disable=line-too-long
 
         if summary_parts:
             summary_text = f"<b>Total: {len(issues)} issues</b> ({', '.join(summary_parts)})"
@@ -303,13 +348,15 @@ def create_issue_section(title: str, issues, elements, mode: str = "STANDARD"):
     else:
         elements.append(Paragraph("<b>Total: 0 issues</b>", style_issue_meta))
 
-    elements.append(Spacer(1, 0.5*cm))
+    elements.append(Spacer(1, 0.5 * cm))
 
     if not issues:
-        elements.append(create_issue_table(issues, mode, title))
+        elements.append(create_issue_table(issues, mode, title, category=category))
     else:
-        sorted_issues = sorted(issues, key=lambda issue: get_issue_sort_order(issue, mode))
-        seen_severities = set()
+        sorted_issues = sorted(
+            issues, key=lambda issue: get_issue_sort_order(issue, mode, category)
+        )
+        seen_severities: Set[str] = set()
 
         for issue_chunk in chunk_issues_for_tables(sorted_issues):
             elements.append(
@@ -319,25 +366,31 @@ def create_issue_section(title: str, issues, elements, mode: str = "STANDARD"):
                     title,
                     seen_severities=seen_severities,
                     sort_issues=False,
+                    category=category,
                 )
             )
 
-    elements.append(Spacer(1, 1*cm))
+    elements.append(Spacer(1, 1 * cm))
+
 
 # Generate Security issues section
 def generate_security_issues_page(report, elements, mode):
     """Generates the Security Issues section of the report"""
     security_issues = get_issues_by_impact_category(report.issues, "SECURITY")
-    create_issue_section("Security Issues", security_issues, elements, mode)
+    create_issue_section("Security Issues", security_issues, elements, mode, "SECURITY")
+
 
 # Generate Reliability issues section
 def generate_reliability_issues_page(report, elements, mode):
     """Generates the Reliability Issues section of the report"""
     reliability_issues = get_issues_by_impact_category(report.issues, "RELIABILITY")
-    create_issue_section("Reliability Issues", reliability_issues, elements, mode)
+    create_issue_section("Reliability Issues", reliability_issues, elements, mode, "RELIABILITY")
+
 
 # Generate Maintainability issues section
 def generate_maintainability_issues_page(report, elements, mode):
     """Generates the Maintainability Issues section of the report"""
     maintainability_issues = get_issues_by_impact_category(report.issues, "MAINTAINABILITY")
-    create_issue_section("Maintainability Issues", maintainability_issues, elements, mode)
+    create_issue_section(
+        "Maintainability Issues", maintainability_issues, elements, mode, "MAINTAINABILITY"
+    )
