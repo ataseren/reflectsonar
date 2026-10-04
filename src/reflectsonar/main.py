@@ -37,6 +37,7 @@ def parse_arguments():
     )
     parser.add_argument("-o", "--output", help="Output PDF file path")
     parser.add_argument("-p", "--project", help="SonarQube project key")
+    parser.add_argument("-b", "--branch", help="SonarQube project branch name")
     parser.add_argument("-u", "--url", help="SonarQube server URL", default="http://localhost:9000")
     parser.add_argument("-t", "--token", help="SonarQube authentication token")
     parser.add_argument("-v", "--verbose", action="store_true", help="Enable verbose logging")
@@ -61,6 +62,8 @@ def parse_arguments():
         config = load_config(args.config)
         if "project" in config:
             args.project = config["project"]
+        if "branch" in config:
+            args.branch = config["branch"]
         if "token" in config:
             args.token = config["token"]
         if "url" in config:
@@ -103,6 +106,8 @@ def main():
 
         log(args.verbose, "🚀 Starting ReflectSonar PDF Report Generation")
         log(args.verbose, f"📊 Project: {args.project}")
+        if getattr(args, "branch", None):
+            log(args.verbose, f"🌿 Branch: {args.branch}")
         log(args.verbose, f"🌐 SonarQube URL: {args.url}")
         log(
             args.verbose,
@@ -124,6 +129,7 @@ def main():
             include_snippets=not args.no_snippets,
             high_severity_only=args.high_severity_only,
             include_rules=not args.no_rules,
+            branch=getattr(args, "branch", None),
         )
 
         print_message("📄 Generating PDF report... (Press Ctrl+C to cancel)")

@@ -92,6 +92,9 @@ reflectsonar -p "your-project-key" -t "your-sonarqube-token" -u "http://your-son
 # With custom output path
 reflectsonar -p "my-app" -t "squ_abc123..." -o "reports/my-app-quality-report.pdf"
 
+# Generate a report for a specific branch
+reflectsonar -p "my-app" -t "squ_abc123..." --branch "develop"
+
 # With verbose logging
 reflectsonar -p "my-app" -t "squ_abc123..." --verbose
 
@@ -140,6 +143,7 @@ You do not need to build the project before running it locally.
 |--------|-------|-------------|----------|---------|
 | `--project` | `-p` | SonarQube project key | ✅ Yes | - |
 | `--token` | `-t` | SonarQube authentication token | ✅ Yes | - |
+| `--branch` | `-b` | SonarQube project branch name | ❌ No | Default/main branch |
 | `--url` | `-u` | SonarQube server URL | ❌ No | `http://localhost:9000` |
 | `--output` | `-o` | Output PDF file path | ❌ No | Auto-generated |
 | `--config` | `-c` | Configuration file path | ❌ No | Not set |
@@ -157,6 +161,7 @@ Example configuration:
 ```yaml
 project: your-project-key
 token: squ_your_user_token_here
+branch: develop
 url: http://localhost:9000
 output: reports/quality-report.pdf
 verbose: false

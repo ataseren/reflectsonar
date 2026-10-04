@@ -227,7 +227,12 @@ def get_rules(
 
 # Function to fetch code snippet for a specific issue or hotspot
 def get_code_snippet(
-    base_url: str, token: str, component: str, line: int, session: requests.Session = None
+    base_url: str,
+    token: str,
+    component: str,
+    line: int,
+    session: requests.Session = None,
+    branch: Optional[str] = None,
 ) -> str:
     """Fetches code snippet for a specific issue or hotspot from SonarQube API"""
     try:
@@ -235,10 +240,14 @@ def get_code_snippet(
         from_line = max(1, line - 3)
         to_line = line + 3
 
+        params = {"key": component, "from": from_line, "to": to_line}
+        if branch:
+            params["branch"] = branch
+
         sources_url = build_api_url(
             base_url,
             "/api/sources/show",
-            {"key": component, "from": from_line, "to": to_line},
+            params,
         )
 
         try:
@@ -273,7 +282,14 @@ def get_code_snippet(
         return ""
 
 
-def populate_code_snippets(items, base_url: str, token: str, item_type: str, verbose: bool = False):
+def populate_code_snippets(
+    items,
+    base_url: str,
+    token: str,
+    item_type: str,
+    verbose: bool = False,
+    branch: Optional[str] = None,
+):
     """Fetch code snippets concurrently for issues or hotspots with line numbers."""
     items_with_lines = []
 
@@ -313,6 +329,7 @@ def populate_code_snippets(items, base_url: str, token: str, item_type: str, ver
             item.component,
             item.line,
             session=get_worker_session(),
+            branch=branch,
         )
         if not snippet.strip():
             if item_type == "issue":
@@ -348,13 +365,16 @@ def fetch_all_issues(
     verbose: bool = False,
     mqr_mode: bool = False,
     session: requests.Session = None,
+    branch: Optional[str] = None,
 ) -> Dict:
     """Fetch all project issues using an endpoint compatible with the active mode."""
     encoded_project_key = quote(project_key, safe="")
+    branch_param = f"&branch={quote(branch, safe='')}" if branch else ""
 
     if not mqr_mode:
         issues_url_template = (
             f"{base_url.rstrip('/')}/api/issues/search?componentKeys={encoded_project_key}"
+            f"{branch_param}"
             "&ps={page_size}&p={page}"
         )
         return fetch_paginated_items(
@@ -371,6 +391,7 @@ def fetch_all_issues(
     for impact_quality in ISSUE_IMPACT_QUALITIES:
         issues_url_template = (
             f"{base_url.rstrip('/')}/api/issues/search?componentKeys={encoded_project_key}"
+            f"{branch_param}"
             f"&impactSoftwareQualities={impact_quality}"
             "&ps={page_size}&p={page}"
         )
@@ -415,11 +436,14 @@ def fetch_all_hotspots(
     project_key: str,
     verbose: bool = False,
     session: requests.Session = None,
+    branch: Optional[str] = None,
 ) -> Dict:
     """Fetches all security hotspots from a project"""
     encoded_project_key = quote(project_key, safe="")
+    branch_param = f"&branch={quote(branch, safe='')}" if branch else ""
     hotspots_url_template = (
         f"{base_url.rstrip('/')}/api/hotspots/search?projectKey={encoded_project_key}"
+        f"{branch_param}"
         "&ps={page_size}&p={page}"
     )
     return fetch_paginated_items(
@@ -500,6 +524,7 @@ def get_report_data(
     include_snippets: bool = True,
     high_severity_only: bool = False,
     include_rules: bool = True,
+    branch: Optional[str] = None,
 ) -> ReportData:
     """Main function that fetches all necessary data from SonarQube API"""
     base_url = base_url.rstrip("/")
@@ -524,11 +549,19 @@ def get_report_data(
 
         settings = get_mode_setting(settings_data, default=False)
         metrics_param = ",".join(get_metric_keys(settings))
-        component_url = build_api_url(base_url, "/api/components/show", {"component": project_key})
+
+        component_params = {"component": project_key}
+        if branch:
+            component_params["branch"] = branch
+        component_url = build_api_url(base_url, "/api/components/show", component_params)
+
+        measures_params = {"component": project_key, "metricKeys": metrics_param}
+        if branch:
+            measures_params["branch"] = branch
         measures_url = build_api_url(
             base_url,
             "/api/measures/component",
-            {"component": project_key, "metricKeys": metrics_param},
+            measures_params,
         )
 
         component_data = fetch(
@@ -541,9 +574,12 @@ def get_report_data(
             verbose,
             mqr_mode=settings,
             session=session,
+            branch=branch,
         )
         measures_data = fetch("measures data...", measures_url, token, verbose, session=session)
-        hotspots_data = fetch_all_hotspots(base_url, token, project_key, verbose, session=session)
+        hotspots_data = fetch_all_hotspots(
+            base_url, token, project_key, verbose, session=session, branch=branch
+        )
 
         project = SonarQubeProject.from_dict(component_data)
 
@@ -564,7 +600,7 @@ def get_report_data(
 
         if include_snippets:
             log(verbose, f"Processing {len(issues)} issues and fetching code snippets...")
-            populate_code_snippets(issues, base_url, token, "issue", verbose)
+            populate_code_snippets(issues, base_url, token, "issue", verbose, branch=branch)
         else:
             log(verbose, "Skipping issue code snippets (--no-snippets enabled)")
 
@@ -578,7 +614,7 @@ def get_report_data(
                 verbose,
                 f"Processing {len(hotspots)} security hotspots and fetching code snippets...",
             )
-            populate_code_snippets(hotspots, base_url, token, "hotspot", verbose)
+            populate_code_snippets(hotspots, base_url, token, "hotspot", verbose, branch=branch)
         else:
             log(verbose, "Skipping hotspot code snippets (--no-snippets enabled)")
 
@@ -605,6 +641,8 @@ def get_report_data(
 
         log(verbose, "Data collection summary:")
         log(verbose, f"   • Project: {project.name}")
+        if branch:
+            log(verbose, f"   • Branch: {branch}")
         log(verbose, f"   • Issues collected: {len(issues)}")
         log(verbose, f"   • Hotspots collected: {len(hotspots)}")
         log(verbose, f"   • Measures collected: {len(measures)}")
@@ -636,6 +674,7 @@ def get_report_data(
                 high_severity_only,
                 include_rules,
             ),
+            branch=branch,
         )
     finally:
         session.close()
