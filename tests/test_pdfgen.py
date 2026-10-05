@@ -183,8 +183,21 @@ def test_generate_pdf_renders_branch_metadata_and_title(tmp_path):
     assert reader.metadata.title == "ReflectSonar Report - Demo Project (feature/login)"
 
     cover_text = reader.pages[0].extract_text() or ""
-    assert "SonarQube Branch:" in cover_text
+    assert "Project Branch:" in cover_text
     assert "feature/login" in cover_text
+
+
+def test_generate_pdf_renders_default_branch_when_unspecified(tmp_path):
+    output = tmp_path / "default-branch-report.pdf"
+    report = build_report()
+
+    final_path = generate_pdf(report, str(output), "demo")
+
+    assert final_path == str(output)
+    reader = PdfReader(output)
+    cover_text = reader.pages[0].extract_text() or ""
+    assert "Project Branch:" in cover_text
+    assert "main" in cover_text
 
 
 def test_generate_pdf_default_filename_includes_sanitized_branch(tmp_path, monkeypatch):

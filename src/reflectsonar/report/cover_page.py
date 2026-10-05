@@ -104,8 +104,8 @@ def generate_cover_page(report, elements):
     now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     elements.append(Paragraph(f"<b>Date:</b> {now}", style_meta))
     elements.append(Paragraph(f"<b>SonarQube Project Name:</b> {report.project.name}", style_meta))
-    if getattr(report, "branch", None):
-        elements.append(Paragraph(f"<b>SonarQube Branch:</b> {report.branch}", style_meta))
+    branch_name = getattr(report, "branch", None) or "main"
+    elements.append(Paragraph(f"<b>Project Branch:</b> {branch_name}", style_meta))
     elements.append(Spacer(1, 1 * cm))
 
     # Extract metrics
