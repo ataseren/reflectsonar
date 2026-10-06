@@ -2,6 +2,10 @@
 
 All notable changes to ReflectSonar are documented in this file.
 
+## 1.2.0 -
+
+- Added `--branch` (`-b`) CLI and configuration option for generating branch-specific reports.
+
 ## 1.1.2 - 
 
 - Added `--branch` (`-b`) CLI and configuration option for generating branch-specific reports.
