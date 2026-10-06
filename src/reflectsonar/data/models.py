@@ -163,3 +163,4 @@ class ReportData:
     mode_setting: bool
     rules: Dict[str, SonarQubeRule] = field(default_factory=dict)
     exclusions_note: Optional[str] = None
+    branch: Optional[str] = None

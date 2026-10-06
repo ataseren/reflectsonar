@@ -4,6 +4,7 @@ All notable changes to ReflectSonar are documented in this file.
 
 ## 1.1.2 - 
 
+- Added `--branch` (`-b`) CLI and configuration option for generating branch-specific reports.
 - Added automated tests and repository guidance for maintainers.
 - Fixed SonarQube Standard Experience and MQR mode detection.
 - Prevented incomplete reports after pagination failures or API limits.

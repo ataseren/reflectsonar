@@ -169,3 +169,43 @@ def test_generate_pdf_splits_oversized_issue_and_hotspot_snippets(tmp_path):
     assert text.count("END_OF_LONG_SNIPPET") == 2
     assert "Problematic Code (continued):" in text
     assert "Security Hotspot Code (continued):" in text
+
+
+def test_generate_pdf_renders_branch_metadata_and_title(tmp_path):
+    output = tmp_path / "branch-report.pdf"
+    report = build_report()
+    report.branch = "feature/login"
+
+    final_path = generate_pdf(report, str(output), "demo")
+
+    assert final_path == str(output)
+    reader = PdfReader(output)
+    assert reader.metadata.title == "ReflectSonar Report - Demo Project (feature/login)"
+
+    cover_text = reader.pages[0].extract_text() or ""
+    assert "Project Branch:" in cover_text
+    assert "feature/login" in cover_text
+
+
+def test_generate_pdf_renders_default_branch_when_unspecified(tmp_path):
+    output = tmp_path / "default-branch-report.pdf"
+    report = build_report()
+
+    final_path = generate_pdf(report, str(output), "demo")
+
+    assert final_path == str(output)
+    reader = PdfReader(output)
+    cover_text = reader.pages[0].extract_text() or ""
+    assert "Project Branch:" in cover_text
+    assert "main" in cover_text
+
+
+def test_generate_pdf_default_filename_includes_sanitized_branch(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    report = build_report()
+    report.branch = "feature/auth-v2"
+
+    final_path = generate_pdf(report, None, "demo")
+
+    assert "demo_feature_auth-v2" in final_path
+    assert (tmp_path / final_path).exists()

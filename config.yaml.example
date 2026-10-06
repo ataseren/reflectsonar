@@ -7,6 +7,9 @@ project: your-project-key
 # SonarQube user token
 token: squ_your_user_token_here
 
+# SonarQube branch (optional)
+branch: develop
+
 # SonarQube server url 
 url: http://localhost:9000
 

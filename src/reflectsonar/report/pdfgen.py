@@ -4,6 +4,7 @@ and outputs the final PDF document.
 """
 
 import os
+import re
 import time
 
 from reportlab.platypus import SimpleDocTemplate, PageBreak
@@ -105,8 +106,14 @@ def generate_pdf(
     log(verbose, f"   • {len(report.measures)} measures")
 
     # Create the PDF document
+    branch = getattr(report, "branch", None)
     if output_path:
         final_path = output_path
+    elif branch:
+        sanitized_branch = re.sub(r'[\\/*?:"<>|]', "_", branch)
+        final_path = (
+            f"reflect_sonar_report_{project_key}_{sanitized_branch}_{time.strftime('%Y%m%d')}.pdf"
+        )
     else:
         final_path = f"reflect_sonar_report_{project_key}_{time.strftime('%Y%m%d')}.pdf"
     log(verbose, f"Creating PDF document: {final_path}")
@@ -117,7 +124,12 @@ def generate_pdf(
         if hasattr(report, "project") and report.project and hasattr(report.project, "name")
         else project_key
     )
-    document_title = f"ReflectSonar Report - {project_name}"
+    if branch:
+        document_title = f"ReflectSonar Report - {project_name} ({branch})"
+        report_subject = f"Quality Report for {project_name} ({branch})"
+    else:
+        document_title = f"ReflectSonar Report - {project_name}"
+        report_subject = f"Quality Report for {project_name}"
 
     doc = SimpleDocTemplate(
         final_path,
@@ -128,7 +140,7 @@ def generate_pdf(
         rightMargin=2 * cm,
         title=document_title,
         author="ReflectSonar",
-        subject=f"Quality Report for {project_name}",
+        subject=report_subject,
         creator="ReflectSonar PDF Generator",
         keywords=f"SonarQube,Quality,Report,{project_name}",
     )
